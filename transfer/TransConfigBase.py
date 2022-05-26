@@ -18,5 +18,20 @@ class ConfigBase():
     def __init__(self):
         pass
 
+class StatusCode():
+    OK = 0
+    def __init__(self):
+        pass
+
+class ConfirmMethod():
+    '''
+    确认方式
+    '''
+    NO_CFM = 0
+    QR_CFM = 1
+    BEEP_CFM = 2
+
+    def __init__(self):
+        pass
 
     

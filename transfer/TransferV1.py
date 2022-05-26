@@ -1,7 +1,7 @@
 #coding:utf-8
 
 from TransConfigBase import *
-from utils import StringUtil
+from ..utils import StringUtil
 import hashlib, json
 
 

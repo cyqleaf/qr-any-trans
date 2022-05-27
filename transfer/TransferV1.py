@@ -1,11 +1,12 @@
 #coding:utf-8
 
 from io import BytesIO
-from tempfile import TemporaryFile
-from TransConfigBase import ConfirmMethod, StatusCode, TransferBase
-import StringUtil
+from tkinter import Image
+from transfer.TransConfigBase import ConfirmMethod, StatusCode, TransferBase
+from transfer import StringUtil
 import hashlib, json, base64, math, uuid
 import qrcode
+from PIL.Image import Image
 
 DATA_PROT_SINGLE_CLR = "single-color"
 DATA_PROT_RGB = "rgb"
@@ -52,7 +53,18 @@ class TransferV1(TransferBase):
         self.index  = (self.index + 1) % self.total_batch_count
         return self.index
 
-    def gen_cur_qr(self):
+    def gen_handshake_qr(self) -> Image:
+        json_str = self.hand_shake_pkg.gen_hspkg_json()
+        qr = qrcode.QRCode(30)
+        try:
+            qr.add_data(json_str)
+            qr.best_fit()
+            return qr.make_image()
+        except Exception as e:
+            print(f"生成二维码失败,{e}")
+            return None
+
+    def gen_cur_qr(self) -> Image:
         json_str = self.gen_batch_data_json()
         qr = qrcode.QRCode(30)
         try:
@@ -87,9 +99,6 @@ class TransferV1(TransferBase):
 
         return main_data
 
-        
-
-        
 
     def _gen_handshake_pkg(self):
         handshake_data = HandshakeDataV1(self.file_name, int(self.file_size_Byte / 1024), self.file_type, self.file_md5, self.data_prot,\
@@ -136,7 +145,7 @@ class HandshakePkgV1():
         pass
 
     def gen_hspkg_json(self) -> str:
-        return json.dumps(self)
+        return json.dumps(self.__dict__)
 
     def _verify(self) -> tuple:
         if StringUtil.is_empty(self.main_data_md5):

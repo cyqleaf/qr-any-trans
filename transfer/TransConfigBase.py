@@ -1,8 +1,5 @@
 #coding:utf-8
 
-from re import L
-
-
 class TransferBase():
     '''
     传输基础类，定义了传输的基本动作，不含实际逻辑。传输基本动作在其子类中

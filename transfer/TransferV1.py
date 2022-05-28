@@ -7,6 +7,7 @@ from transfer import StringUtil
 import hashlib, json, base64, math, uuid
 import qrcode
 from PIL.Image import Image
+import time
 
 DATA_PROT_SINGLE_CLR = "single-color"
 DATA_PROT_RGB = "rgb"
@@ -65,12 +66,24 @@ class TransferV1(TransferBase):
             return None
 
     def gen_cur_qr(self) -> Image:
+        st = time.time()
         json_str = self.gen_batch_data_json()
+        end = time.time()
+        print(f"生成JSON耗时: {(end-st) * 1000:.2f} 毫秒")
+
         qr = qrcode.QRCode(30)
         try:
             qr.add_data(json_str)
-            qr.best_fit()
-            return qr.make_image()
+            # qr.best_fit()
+            qr.version = 39 # 1536字节+base64时，39可以cover
+            
+
+            st = time.time()
+            im = qr.make_image()
+            end = time.time()
+            print(f"mk qrimg耗时: {(end-st) * 1000:.2f} 毫秒")
+
+            return im
         except Exception as e:
             print(f"生成二维码失败,{e}")
             return None

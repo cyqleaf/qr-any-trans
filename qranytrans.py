@@ -216,14 +216,33 @@ class QrAnyTransUI():
         tk_im = self._im_to_canvas_im(handshake_im)
         self._draw_im_to_canvas(tk_im)
         time.sleep(1)
+        st = time.time()
+        end = time.time()
 
         while self.cur_frame != self.total_frame:
+            # 获取当前帧
             self.cur_frame = self.transfer.index
+            # 更新任务信息
             self.update_tip(f"当前处理 {self.cur_frame}/ {self.total_frame}帧")
+
+            # 生成QR码
+            st = time.time()
             data_im = self.transfer.gen_cur_qr()
             self.transfer.next_batch()
+            end = time.time()
+            print(f"生成QR耗时: {(end-st) * 1000:.2f} 毫秒")
+
+            # 转换为tk图片
+            st = time.time()
             tk_im = self._im_to_canvas_im(data_im)
+            end = time.time()
+            # print(f"转换tk图片耗时: {(end-st) * 1000:.2f} 毫秒")
+
+            # 绘制到画布中
+            st = time.time()
             self._draw_im_to_canvas(tk_im)
+            end = time.time()
+            # print(f"绘制canvas耗时: {(end-st) * 1000:.2f} 毫秒")
             # time.sleep(1 / self.speed_var_int.get())
             self.progress_var.set(self.cur_frame / self.total_frame * 100)
 

@@ -1,6 +1,7 @@
 #coding:utf-8
 
 
+from threading import Thread
 from tkinter import *
 from tkinter.ttk import *
 from tkinter.filedialog import askopenfilename
@@ -32,6 +33,9 @@ class QrAnyTransUI():
         self.source_file = None
         self.source_bio = BytesIO()
         self.transfer = None
+
+        self.is_pause = False
+        self.is_stop = False
 
         self._prepare_components()
         self.reset_app()
@@ -72,9 +76,9 @@ class QrAnyTransUI():
         # 开始/继续 暂停 停止（归零）
         self.start_btn_var = StringVar()
         self.start_btn_var.set("开始")
-        self.start_btn = Button(self.main_win, textvariable=self.start_btn_var, command=self.run_task)
-        self.pause_btn = Button(self.main_win, text="暂停")
-        self.stop_btn = Button(self.main_win, text="停止")
+        self.start_btn = Button(self.main_win, textvariable=self.start_btn_var, command=self.on_start_btn)
+        self.pause_btn = Button(self.main_win, text="暂停", command=self.on_pause_btn)
+        self.stop_btn = Button(self.main_win, text="停止", command=self.on_stop_btn)
         self.start_btn.grid(column=0, row=10, columnspan=4, sticky=EW)
         self.pause_btn.grid(column=4, row=10, columnspan=2, sticky=EW)
         self.stop_btn.grid(column=6, row=10, columnspan=2, sticky=EW)
@@ -158,7 +162,35 @@ class QrAnyTransUI():
         self.img_handles = [0,0]
         self.buffer_index = 0
 
+        # 重置暂停和停止标识符
+        self.is_pause = False
+        self.is_stop = False
+
         return
+
+    def on_start_btn(self):
+        # 暂停和停止时按钮功能变化
+        self.is_pause = False
+        self.is_stop = False
+        run_thread = Thread(target=self.run_task, name="run_task_thread", daemon=True)
+        run_thread.start()
+
+        self.start_btn.config(state="disabled")
+        self.pause_btn.config(state="normal")
+        self.stop_btn.config(state="normal")
+
+    def on_pause_btn(self):
+        self.is_pause = True
+        self.pause_btn.config(state="disabled")
+        self.start_btn.config(state="normal")
+        self.start_btn_var.set("继续")
+
+    def on_stop_btn(self):
+        self.is_stop = True
+        self.is_pause = False
+        self.pause_btn.config(state="disabled")
+        self.start_btn.config(state="normal")
+        self.start_btn_var.set("开始")
 
     def update_tip(self, tip):
         self.cur_tips.set(tip)
@@ -216,21 +248,29 @@ class QrAnyTransUI():
         tk_im = self._im_to_canvas_im(handshake_im)
         self._draw_im_to_canvas(tk_im)
         time.sleep(1)
-        st = time.time()
-        end = time.time()
 
         while self.cur_frame != self.total_frame:
+            if self.is_stop is True:
+                self.reset_task()
+                self.cur_frame = 0
+                self.total_frame = self.transfer.total_batch_count
+                self.transfer.index = 0
+                return
+            if self.is_pause is True:
+                time.sleep(0.3)
+                continue
+
             # 获取当前帧
             self.cur_frame = self.transfer.index
             # 更新任务信息
             self.update_tip(f"当前处理 {self.cur_frame}/ {self.total_frame}帧")
 
             # 生成QR码
-            st = time.time()
+            # st = time.time()
             data_im = self.transfer.gen_cur_qr()
             self.transfer.next_batch()
-            end = time.time()
-            print(f"生成QR耗时: {(end-st) * 1000:.2f} 毫秒")
+            # end = time.time()
+            # print(f"生成QR耗时: {(end-st) * 1000:.2f} 毫秒")
 
             # 转换为tk图片
             st = time.time()

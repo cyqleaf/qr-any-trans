@@ -29,8 +29,14 @@ class TransferV1(TransferBase):
         self.confirm_method = confirm_method
         self.index = 0
         self.data_prot_v = data_prot_v
+
+        
         if "." in self.file_name:
             self.file_type = self.file_name[::-1].split(".")[0][::-1]
+        else:
+            self.file_type = ""
+
+        self.main_data_inited = False
         
         # 生成UUID
         self.trans_uuid = str(uuid.uuid4()).replace("-","")
@@ -49,6 +55,9 @@ class TransferV1(TransferBase):
 
         # 生成握手包
         self.hand_shake_pkg = self._gen_handshake_pkg()
+
+        self.main_data_list = []
+
 
     def next_batch(self):
         self.index  = (self.index + 1) % self.total_batch_count
@@ -69,7 +78,7 @@ class TransferV1(TransferBase):
         st = time.time()
         json_str = self.gen_batch_data_json()
         end = time.time()
-        print(f"生成JSON耗时: {(end-st) * 1000:.2f} 毫秒")
+        # print(f"生成JSON耗时: {(end-st) * 1000:.2f} 毫秒")
 
         qr = qrcode.QRCode(30)
         try:
@@ -78,10 +87,10 @@ class TransferV1(TransferBase):
             qr.version = 39 # 1536字节+base64时，39可以cover
             
 
-            st = time.time()
+            # st = time.time()
             im = qr.make_image()
-            end = time.time()
-            print(f"mk qrimg耗时: {(end-st) * 1000:.2f} 毫秒")
+            # end = time.time()
+            # print(f"mk qrimg耗时: {(end-st) * 1000:.2f} 毫秒")
 
             return im
         except Exception as e:

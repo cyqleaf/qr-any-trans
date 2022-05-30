@@ -11,6 +11,8 @@ from io import BytesIO
 from PIL import Image, ImageTk
 import time
 
+from zmq import has
+
 from transfer.TransferV1 import DATA_PROT_SINGLE_CLR, DATA_PROT_V_1, TransferV1
 
 
@@ -23,8 +25,6 @@ class QrAnyTransUI():
     def __init__(self):
         self.main_win = Tk()
         self.main_win.wm_title("任意传输器")
-        self.cur_frame = 0
-        self.total_frame = 0
         self.pure_file_name = ""
         self.img_tk_buffer = [0,0]
         self.img_handles = [0,0]
@@ -130,10 +130,9 @@ class QrAnyTransUI():
         self.reset_task()
 
     def reset_task(self):
-
-        # 重置基础数据
-        self.cur_frame = 0
-        self.total_frame = 0
+        
+        # 重置传输器
+        self.transfer.reset_transfer_state()
 
         # 重置二维码区域
         self.qr_canvas.delete("all")
@@ -170,11 +169,13 @@ class QrAnyTransUI():
 
     def on_start_btn(self):
         # 暂停和停止时按钮功能变化
-        self.is_pause = False
-        self.is_stop = False
-        run_thread = Thread(target=self.run_task, name="run_task_thread", daemon=True)
-        run_thread.start()
-
+        if self.is_pause is False:
+            self.is_stop = False
+            run_thread = Thread(target=self.run_task, name="run_task_thread", daemon=True)
+            run_thread.start()
+        else:
+            self.is_pause = False
+        
         self.start_btn.config(state="disabled")
         self.pause_btn.config(state="normal")
         self.stop_btn.config(state="normal")
@@ -199,6 +200,10 @@ class QrAnyTransUI():
         self.cur_tips.set("当前无任务")
 
     def ask_file(self):
+
+        # 先重置所有状态
+        self.reset_app()
+
         # 获取文件名
         file_name = askopenfilename()
         file_name = file_name.replace("/", os.sep)
@@ -220,10 +225,8 @@ class QrAnyTransUI():
         
         # 加载到app中
         self.transfer = TransferV1(self.pure_file_name, self.source_bio, DATA_PROT_SINGLE_CLR, DATA_PROT_V_1)
-        self.cur_frame = 0
-        self.total_frame = self.transfer.total_batch_count
 
-        self.update_tip(f"文件初始化完成,{self.cur_frame} / {self.total_frame}帧")
+        self.update_tip(f"文件初始化完成, Meta帧 / {self.transfer.total_batch_count}帧")
     
     def _check_skip_frame_spinbox(self) -> bool:
         return True
@@ -248,12 +251,11 @@ class QrAnyTransUI():
         tk_im = self._im_to_canvas_im(handshake_im)
         self._draw_im_to_canvas(tk_im)
         time.sleep(1)
+        has_next = True
 
-        while self.cur_frame != self.total_frame:
+        while has_next is True:
             if self.is_stop is True:
                 self.reset_task()
-                self.cur_frame = 0
-                self.total_frame = self.transfer.total_batch_count
                 self.transfer.index = 0
                 return
             if self.is_pause is True:
@@ -261,14 +263,13 @@ class QrAnyTransUI():
                 continue
 
             # 获取当前帧
-            self.cur_frame = self.transfer.index
             # 更新任务信息
-            self.update_tip(f"当前处理 {self.cur_frame}/ {self.total_frame}帧")
+            self.update_tip(f"当前处理 {self.transfer.index}/ {self.transfer.total_batch_count}帧")
 
             # 生成QR码
             # st = time.time()
             data_im = self.transfer.gen_cur_qr()
-            self.transfer.next_batch()
+            has_next = self.transfer.next_batch()
             # end = time.time()
             # print(f"生成QR耗时: {(end-st) * 1000:.2f} 毫秒")
 
@@ -284,7 +285,7 @@ class QrAnyTransUI():
             end = time.time()
             # print(f"绘制canvas耗时: {(end-st) * 1000:.2f} 毫秒")
             # time.sleep(1 / self.speed_var_int.get())
-            self.progress_var.set(self.cur_frame / self.total_frame * 100)
+            self.progress_var.set(self.transfer.index / self.transfer.total_batch_count * 100)
 
 
 def main():

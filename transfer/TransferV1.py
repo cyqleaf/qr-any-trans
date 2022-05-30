@@ -59,9 +59,21 @@ class TransferV1(TransferBase):
         self.main_data_list = []
 
 
+    def reset_transfer_state(self):
+        '''
+        将传输器重置到初始化状态，主要是外部点击停止的情况
+        '''
+        self.file_bio.seek(0,0)
+        self.index = 0
+
+
+
     def next_batch(self):
-        self.index  = (self.index + 1) % self.total_batch_count
-        return self.index
+        if self.index == self.total_batch_count - 1:
+            return False
+        else:
+            self.index += 1
+            return self.index
 
     def gen_handshake_qr(self) -> Image:
         json_str = self.hand_shake_pkg.gen_hspkg_json()
@@ -112,6 +124,7 @@ class TransferV1(TransferBase):
         
 
     def _gen_main_data(self):
+        self.file_bio.seek(self.index * BATCH_SIZE_BYTE, 0)
         part_bytes = self.file_bio.read(BATCH_SIZE_BYTE)
         part_md5 = hashlib.md5(part_bytes).hexdigest()
 

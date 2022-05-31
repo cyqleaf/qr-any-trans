@@ -1,7 +1,7 @@
 #coding:utf-8
 
 
-from threading import Thread
+from threading import Thread, Lock
 from tkinter import *
 from tkinter.ttk import *
 from tkinter.filedialog import askopenfilename
@@ -35,11 +35,11 @@ class QrAnyTransUI():
         self.transfer = None
 
         self.is_pause = False
-        self.is_stop = False
+        self.call_stop = False
+        self.is_stoped = False
 
         self._prepare_components()
-        self.reset_app()
-        
+        self.reset_app()        
 
     def run(self):
         self.main_win.mainloop()
@@ -132,7 +132,10 @@ class QrAnyTransUI():
     def reset_task(self):
         
         # 重置传输器
-        self.transfer.reset_transfer_state()
+        if (self.transfer is None) == False:
+            self.transfer.reset_transfer_state()
+            self.update_tip(f"文件初始化完成, Meta帧 / {self.transfer.total_batch_count}帧")
+
 
         # 重置二维码区域
         self.qr_canvas.delete("all")
@@ -163,17 +166,23 @@ class QrAnyTransUI():
 
         # 重置暂停和停止标识符
         self.is_pause = False
-        self.is_stop = False
+        self.call_stop = False
+        self.is_stoped = False
 
         return
 
     def on_start_btn(self):
         # 暂停和停止时按钮功能变化
         if self.is_pause is False:
-            self.is_stop = False
-            run_thread = Thread(target=self.run_task, name="run_task_thread", daemon=True)
-            run_thread.start()
+            self.call_stop = False
+            self.is_stoped = False
+            
+            self.transfer_thread = Thread(target=self.run_task, name="run_task_thread", daemon=True)
+            self.transfer_thread.start()
+            
         else:
+            # 暂停时的处理
+            self.is_stoped = False
             self.is_pause = False
         
         self.start_btn.config(state="disabled")
@@ -187,11 +196,23 @@ class QrAnyTransUI():
         self.start_btn_var.set("继续")
 
     def on_stop_btn(self):
-        self.is_stop = True
+        self.call_stop = True
         self.is_pause = False
+        # 扔到另外的线程做停止完成的后续工作
+        wait_stop_thread = Thread(target=self._wait_for_stop_success, name="wait_stop_thread", daemon=True)
+        wait_stop_thread.start()
+        
+
+    def _wait_for_stop_success(self):
+        while True:
+            if self.is_stoped is True:
+                break
+            time.sleep(0.2)
+            
         self.pause_btn.config(state="disabled")
         self.start_btn.config(state="normal")
         self.start_btn_var.set("开始")
+        self.reset_task()
 
     def update_tip(self, tip):
         self.cur_tips.set(tip)
@@ -254,39 +275,35 @@ class QrAnyTransUI():
         has_next = True
 
         while has_next is True:
-            if self.is_stop is True:
-                self.reset_task()
-                self.transfer.index = 0
+            if self.call_stop is True:
+                self.is_stoped = True
                 return
             if self.is_pause is True:
-                time.sleep(0.3)
+                time.sleep(0.2)
+                # print("暂停态")
                 continue
 
-            # 获取当前帧
-            # 更新任务信息
-            self.update_tip(f"当前处理 {self.transfer.index}/ {self.transfer.total_batch_count}帧")
-
             # 生成QR码
-            # st = time.time()
             data_im = self.transfer.gen_cur_qr()
-            has_next = self.transfer.next_batch()
-            # end = time.time()
-            # print(f"生成QR耗时: {(end-st) * 1000:.2f} 毫秒")
+            has_next = (self.transfer.next_batch() != False)
 
             # 转换为tk图片
-            st = time.time()
             tk_im = self._im_to_canvas_im(data_im)
-            end = time.time()
-            # print(f"转换tk图片耗时: {(end-st) * 1000:.2f} 毫秒")
 
             # 绘制到画布中
             st = time.time()
             self._draw_im_to_canvas(tk_im)
             end = time.time()
+            # 获取当前帧
+            # 更新任务信息
+            self.update_tip(f"当前处理 {self.transfer.index}/ {self.transfer.total_batch_count}帧")
+
             # print(f"绘制canvas耗时: {(end-st) * 1000:.2f} 毫秒")
             # time.sleep(1 / self.speed_var_int.get())
             self.progress_var.set(self.transfer.index / self.transfer.total_batch_count * 100)
-
+        
+        time.sleep(5)
+        self.reset_task()
 
 def main():
     ui = QrAnyTransUI()

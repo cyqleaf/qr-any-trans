@@ -94,6 +94,40 @@ def myqrgen(strs:list, name_fix:str):
     for i in range(len(strs)):
         myqr.run(strs[i],39,'M',save_name=f"test_{i}_{name_fix}.jpg", save_dir="./myqrtest/")
 
+def test_create_and_map():
+    from qrcode import QRCode
+    from qrcode import util
+    import time
+
+    data = "doseslae" * 20000
+    data = data.encode("utf-8")
+    # print(data)
+    qrs = []
+
+    ori_map_data = QRCode.map_data
+    def new_map_data(self, data, mask_pattern):
+        st = time.time()
+        ori_map_data(self, data, mask_pattern)
+        end = time.time()
+        cost_ms = (end-st) * 1000
+        print(f"map_cost:{cost_ms:.2f}毫秒")
+
+    QRCode.map_data=new_map_data
+
+    for i in range(200):
+        qr = QRCode(version = 39,mask_pattern=5)
+        qr.add_data(util.QRData(data[i:1920+i]))
+        qrs.append(qr)
+    # qr.best_fit()
+    # print(qr.version)
+    st = time.time()
+    for qr in qrs:
+        qr.make_image()
+    end = time.time()
+    print(f"总时间:{end - st}, 最大帧数:{200 / (end-st):.2f}, 每帧时间:{(end-st)*1000/200:.2f}毫秒")
+
+    # print(qr.modules)
+
 
 if __name__ == "__main__":
     test_str = "doyouhear the people sing" * 10000
@@ -102,7 +136,9 @@ if __name__ == "__main__":
     bs = test_str.encode("utf-8")
     print(len(bs))
 
+    test_create_and_map()
+
     # test_myqr(bs)
-    test_qrcode(bs)
+    # test_qrcode(bs)
 
     

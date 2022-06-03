@@ -92,7 +92,7 @@ class TransferV1(TransferBase):
         end = time.time()
         # print(f"生成JSON耗时: {(end-st) * 1000:.2f} 毫秒")
 
-        qr = qrcode.QRCode(30)
+        qr = qrcode.QRCode(39, mask_pattern=5)
         try:
             qr.add_data(json_str)
             # qr.best_fit()

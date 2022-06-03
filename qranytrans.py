@@ -273,6 +273,7 @@ class QrAnyTransUI():
         self._draw_im_to_canvas(tk_im)
         time.sleep(1)
         has_next = True
+        
 
         while has_next is True:
             if self.call_stop is True:

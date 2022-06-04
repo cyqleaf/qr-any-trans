@@ -1,6 +1,6 @@
 #coding:utf-8
 
-import hashlib
+import hashlib, random
 
 def is_empty(a:str) -> bool:
     '''
@@ -17,3 +17,10 @@ def get_md5_lowerhex(content: str) -> bool:
 
     md5 = hashlib.md5(content.encode("UTF-8"))
     return md5.hexdigest()
+
+def gen_random_bytes(bytes_len: int):
+    word_tpl = "qwertyuiop[]asdfghjkl;'zxcvbnm,./=-0987654321"
+    res_l = []
+    for i in range(bytes_len):
+        res_l.append(word_tpl[random.randint(0,len(word_tpl) - 1)])
+    return "".join(res_l).encode("utf-8")

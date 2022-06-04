@@ -13,7 +13,7 @@ import time
 
 from zmq import has
 
-from transfer.TransferV1 import DATA_PROT_SINGLE_CLR, DATA_PROT_V_1, TransferV1
+from transfer.TransferV1 import CODE_PROT_SINGLE_CLR, DATA_PROT_BYTES, DATA_PROT_V_1, TransferV1
 
 
 app_version = "1.0 Beta"
@@ -245,7 +245,7 @@ class QrAnyTransUI():
             self.source_bio.write(self.source_file.read())
         
         # 加载到app中
-        self.transfer = TransferV1(self.pure_file_name, self.source_bio, DATA_PROT_SINGLE_CLR, DATA_PROT_V_1)
+        self.transfer = TransferV1(self.pure_file_name, self.source_bio, DATA_PROT_BYTES, DATA_PROT_V_1, CODE_PROT_SINGLE_CLR)
 
         self.update_tip(f"文件初始化完成, Meta帧 / {self.transfer.total_batch_count}帧")
     

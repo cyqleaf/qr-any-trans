@@ -274,7 +274,7 @@ class QrAnyTransUI():
         time.sleep(1)
         has_next = True
         
-
+        st = 0
         while has_next is True:
             if self.call_stop is True:
                 self.is_stoped = True
@@ -284,7 +284,6 @@ class QrAnyTransUI():
                 # print("暂停态")
                 continue
 
-            st = time.time()
             # 生成QR码
             data_im = self.transfer.gen_cur_qr()
             has_next = (self.transfer.next_batch() != False)
@@ -292,21 +291,24 @@ class QrAnyTransUI():
             # 转换为tk图片
             tk_im = self._im_to_canvas_im(data_im)
 
-            # 绘制到画布中
-            self._draw_im_to_canvas(tk_im)
-
-            end = time.time()
-            
-            # 获取当前帧
-            # 更新任务信息
-            self.update_tip(f"当前处理 {self.transfer.index}/ {self.transfer.total_batch_count}帧")
-            
+            # 确保时间间隔确实是一帧显示时间
+            end  = time.time()
             frame_work_time = end - st
             frame_ideal_time = 1 / self.speed_var_int.get()
             time_break = frame_ideal_time - frame_work_time
 
             if time_break > 0:
                 time.sleep(time_break)
+
+            # 绘制到画布中
+            self._draw_im_to_canvas(tk_im)
+
+            st = time.time()
+            
+            # 获取当前帧
+            # 更新任务信息
+            self.update_tip(f"当前处理 {self.transfer.index}/ {self.transfer.total_batch_count}帧")
+            
             self.progress_var.set(self.transfer.index / self.transfer.total_batch_count * 100)
         
         time.sleep(5)

@@ -8,8 +8,8 @@ from transfer import StringUtil
 import hashlib, json, base64, math, uuid
 import qrcode
 from PIL.Image import Image
-import time
-import constants
+from transfer import constants
+from qrcode.util import QRData, MODE_8BIT_BYTE
 
 CODE_PROT_SINGLE_CLR = "single-color"
 CODE_PROT_RGB = "rgb"
@@ -73,9 +73,9 @@ class TransferV1(TransferBase):
         # 计算当前方案下单码可承载数据字节数
         # 查表取得总字节数，总字节数-固定meta大小-扩展meta大小 = 有效数据字节数
         total_capcity = constants.v_max_data_dict[self.version]
-        self.frame_data_size_byte = total_capcity - DATA_F_META_SIZE_BYTE - self.ext_meta_size
+        self.frame_pure_data_size_byte = total_capcity - DATA_F_META_SIZE_BYTE - self.ext_meta_size
 
-        self.total_batch_count = int(math.ceil(self.file_size_Byte / self.frame_data_size_byte))
+        self.total_batch_count = int(math.ceil(self.file_size_Byte / self.frame_pure_data_size_byte))
 
         # 计算文件MD5
         self.file_bio.seek(0)
@@ -127,6 +127,20 @@ class TransferV1(TransferBase):
 
 
     def _gen_cur_qr_bytes(self) -> Image:
+        self.file_bio.seek(self.index * self.frame_pure_data_size_byte, 0)
+        pure_data_bytes = self.file_bio.read(self.frame_pure_data_size_byte)
+
+        main_data_obj = MainDataBytesV1(pure_data_bytes, self.index, self.total_batch_count, self.trans_uuid)
+
+        qr = qrcode.QRCode(version=self.version, mask_pattern=constants.DEFAULT_MASK_PATTERN)
+        try:
+            qr.add_data(QRData(main_data_obj.get_total_data_bytes(), mode=MODE_8BIT_BYTE))
+            im = qr.make_image()
+            return im
+        except Exception as e:
+            print(f"生成二维码失败,{e}")
+            return None
+
         pass
 
     def _gen_cur_qr_json(self) -> Image:

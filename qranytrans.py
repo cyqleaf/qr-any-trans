@@ -1,7 +1,7 @@
 #coding:utf-8
 
 
-from threading import Thread, Lock
+from threading import Thread
 from tkinter import *
 from tkinter.ttk import *
 from tkinter.filedialog import askopenfilename
@@ -10,9 +10,6 @@ import os
 from io import BytesIO
 from PIL import Image, ImageTk
 import time
-
-from zmq import has
-
 from transfer.TransferV1 import CODE_PROT_SINGLE_CLR, DATA_PROT_BYTES, DATA_PROT_V_1, TransferV1
 
 
@@ -20,6 +17,8 @@ app_version = "1.0 Beta"
 # 最大50M
 MAX_FILE_SIZE = 1024 * 1024 * 50
 CANVAS_SIDE_SIZE = 400
+
+AUTHOR_DESC = f"版本: {app_version}  ©HONG Xiao hongxiao95@hotmail.com"
 
 class QrAnyTransUI():
     def __init__(self):
@@ -37,6 +36,7 @@ class QrAnyTransUI():
         self.is_pause = False
         self.call_stop = False
         self.is_stoped = False
+        self.rec_thread = None
 
         self._prepare_components()
         self.reset_app()        
@@ -65,7 +65,7 @@ class QrAnyTransUI():
         self.speed_var_int.set(5)
 
         self.speed_label = Label(self.main_win, text="速率调节")
-        self.speed_scale = Scale(self.main_win, from_=1, to=24, variable=self.speed_var, \
+        self.speed_scale = Scale(self.main_win, from_=1, to=15, variable=self.speed_var, \
             command=lambda x: self.speed_var_int.set(int(float(x))))
         self.speed_value_label = Label(self.main_win, textvariable=self.speed_var_int)
 
@@ -86,24 +86,38 @@ class QrAnyTransUI():
         # 上一帧 下一帧
         self.prev_frame_btn = Button(self.main_win, text="上一帧")
         self.next_frame_btn = Button(self.main_win, text="下一帧")
+
+        self.prev_frame_btn.grid(column=0, row=11, columnspan=2, sticky=EW)
+        self.next_frame_btn.grid(column=2, row=11, columnspan=2, sticky=EW)
+
+        # 跳转到某帧
+        self.skip_spin_box = Spinbox(self.main_win, from_=0, to=1000, value=0, increment=1, validate="focus", validatecommand=self._check_skip_frame_spinbox, width=10)
+        self.skip_prev_lable = Label(self.main_win, text="跳到")
+        self.skip_after_label = Label(self.main_win, text="帧")
+        self.skip_go_btn = Button(self.main_win, text="Go")
+
+        self.skip_prev_lable.grid(column=4, row=11, sticky=EW)
+        self.skip_spin_box.grid(column=5, row=11)
+        self.skip_after_label.grid(column=6, row=11, sticky=EW)
+        self.skip_go_btn.grid(column=7, row=11, sticky=EW)
+
+        # 执行信息
+        self.file_size_var = StringVar()
+        self._set_file_size_tip(is_reset=True)
+        self.file_size_label = Label(self.main_win, textvariable=self.file_size_var)
+
+        self.file_speed_var = StringVar()
+        self._set_file_speed_tip(is_reset=True)
+        self.file_speed_label = Label(self.main_win, textvariable=self.file_speed_var)
+
         self.cur_tips = StringVar()
         self.reset_tip()
         self.cur_frame_label = Label(self.main_win, textvariable=self.cur_tips)
 
-        self.prev_frame_btn.grid(column=0, row=11, columnspan=2, sticky=EW)
-        self.next_frame_btn.grid(column=2, row=11, columnspan=2, sticky=EW)
-        self.cur_frame_label.grid(column=4, row=11, columnspan=4, sticky=E)
+        self.file_size_label.grid(column=0, row=12, columnspan=2, sticky=W)
+        self.file_speed_label.grid(column=2, row=12, columnspan=3, sticky=W)
+        self.cur_frame_label.grid(column=5, row=12, columnspan=3, sticky=E)
 
-        # 跳转到某帧
-        self.skip_spin_box = Spinbox(self.main_win, from_=0, to=1000, value=0, increment=1, validate="focus", validatecommand=self._check_skip_frame_spinbox)
-        self.skip_prev_lable = Label(self.main_win, text="跳转到")
-        self.skip_after_label = Label(self.main_win, text="帧")
-        self.skip_go_btn = Button(self.main_win, text="Go")
-
-        self.skip_prev_lable.grid(column=0, row=12, columnspan=3, sticky=EW)
-        self.skip_spin_box.grid(column=3, row=12, columnspan=3, sticky=EW)
-        self.skip_after_label.grid(column=6, row=12, columnspan=1, sticky=EW)
-        self.skip_go_btn.grid(column=7, row=12, sticky=EW)
 
         # 进度条
         self.progress_var = IntVar()
@@ -111,12 +125,21 @@ class QrAnyTransUI():
         self.progress_bar = Progressbar(self.main_win, maximum=100, variable=self.progress_var, mode="determinate")
         self.progress_bar.grid(column=0, row=13, columnspan=8, sticky=EW)
 
+        # 接收
+        self.receive_btn = Button(self.main_win, text="收", command=self.on_rec_btn)
+        self.receive_btn.grid(column=0, row=14, sticky=W)
+
         # 作者信息
-        self.author_info_label = Label(self.main_win, text=f"版本: {app_version}    ©HONG Xiao  email: hongxiao95@hotmail.com", foreground="gray")
+        self.author_info_label = Label(self.main_win, text=AUTHOR_DESC, foreground="gray")
         self.author_info_label.grid(column=0, row=14, columnspan=8, sticky=E)
 
 
         return
+
+    def on_rec_btn(self):
+        if (self.rec_thread is None) or (self.rec_thread.is_alive() == False):
+            self.rec_thread = Thread(target=lambda: QrReceiverUI(self.main_win).run(), name="QrReceiver-Thread", daemon=True)
+            self.rec_thread.start()
 
     def reset_app(self):
         '''
@@ -164,6 +187,9 @@ class QrAnyTransUI():
         self.img_handles = [0,0]
         self.buffer_index = 0
 
+        # 重置传输速度
+        self._set_file_speed_tip(is_reset=True)
+
         # 重置暂停和停止标识符
         self.is_pause = False
         self.call_stop = False
@@ -171,7 +197,34 @@ class QrAnyTransUI():
 
         return
 
+    def _set_file_speed_tip(self, file_speed_KB:float = 0, is_reset:bool = False):
+        if is_reset:
+            self.file_speed_var.set("当前无速度")
+            return
+
+        self.file_speed_var.set(f"均速:{file_speed_KB:.2f}KB")
+
+    def _set_file_size_tip(self, file_size_B:int = 0, is_reset = False):
+        if is_reset:
+            self.file_size_var.set("未选择文件")
+            return
+
+        unit = "B"
+        file_size = file_size_B
+        if file_size > 1024:
+            file_size = file_size / 1024
+            unit = "KB"
+            if file_size > 1024:
+                file_size = file_size / 1024
+                unit = "MB"
+        self.file_size_var.set(f"大小：{file_size:.2f} {unit}")
+        return   
+
     def on_start_btn(self):
+        if self.transfer is None:
+            messagebox.showerror("无法开始","未选择文件!")
+            return
+
         # 暂停和停止时按钮功能变化
         if self.is_pause is False:
             self.call_stop = False
@@ -219,6 +272,8 @@ class QrAnyTransUI():
 
     def reset_tip(self):
         self.cur_tips.set("当前无任务")
+        self._set_file_speed_tip(is_reset=True)
+        self._set_file_size_tip(is_reset=True)
 
     def ask_file(self):
 
@@ -232,9 +287,11 @@ class QrAnyTransUI():
         # 判断文件大小
         with open(file_name, "rb") as tryfile:
             tryfile.seek(0, 2)
-            if tryfile.tell() > MAX_FILE_SIZE:
-                messagebox.showerror("文件过大！",f"文件最大限制为{MAX_FILE_SIZE}MB， 过大文件可考虑分卷压缩")
+            file_size_b = tryfile.tell()
+            if file_size_b > MAX_FILE_SIZE:
+                messagebox.showerror("文件过大！",f"文件最大限制为{MAX_FILE_SIZE/1024/1024:.2f}MB， 过大文件可考虑分卷压缩")
                 return
+            self._set_file_size_tip(file_size_b)
             self.pure_file_name = file_name.split(os.sep)[-1]
             self.chosen_file_name_var.set(file_name)
             self.update_tip("正在初始化文件...")
@@ -268,6 +325,10 @@ class QrAnyTransUI():
         self.main_win.update_idletasks()
 
     def run_task(self):
+
+        task_st = time.time()
+        handled_frames = 0
+
         handshake_im = self.transfer.gen_handshake_qr()
         tk_im = self._im_to_canvas_im(handshake_im)
         self._draw_im_to_canvas(tk_im)
@@ -293,17 +354,24 @@ class QrAnyTransUI():
 
             # 确保时间间隔确实是一帧显示时间
             end  = time.time()
+
+            # 决定帧间隔sleep
             frame_work_time = end - st
             frame_ideal_time = 1 / self.speed_var_int.get()
             time_break = frame_ideal_time - frame_work_time
-
             if time_break > 0:
-                time.sleep(time_break)
+                time.sleep(time_break)    
 
             # 绘制到画布中
             self._draw_im_to_canvas(tk_im)
-
+            handled_frames += 1
             st = time.time()
+
+            # 计算当前均速
+            task_time = st - task_st
+            total_trans_B = handled_frames * self.transfer.frame_pure_data_size_byte
+            self._set_file_speed_tip(total_trans_B / 1024 / task_time)
+
             
             # 获取当前帧
             # 更新任务信息
@@ -314,7 +382,61 @@ class QrAnyTransUI():
         time.sleep(5)
         self.reset_task()
 
+class QrReceiverUI():
+    REC_CANVAS_WIDTH = 600
+
+    def __init__(self, root_win):
+        self.rec_main_win = Toplevel(root_win)
+        self.rec_main_win.title("任意传输接收器")
+
+        self._prepare_components()
+
+    def run(self):
+        self.rec_main_win.deiconify()
+
+    def _prepare_components(self):
+        # 放置摄像头图像的canvas
+        self.video_canvas = Canvas(self.rec_main_win, width=QrReceiverUI.REC_CANVAS_WIDTH, height=QrReceiverUI.REC_CANVAS_WIDTH, background="white")
+
+        self.video_canvas.grid(column=0, row=0, columnspan=10, sticky=EW)
+
+        # 状态显示label 
+        self.state_var = StringVar()
+        self.state_var.set("未开始")
+        self.state_label = Label(self.rec_main_win)
+        self.state_label.grid(column=0, row=1, columnspan=10)
+
+        # 操作按钮
+        self.start_btn = Button(self.rec_main_win, text="开始", command=self.on_start_btn)
+        self.cancel_btn = Button(self.rec_main_win, text="取消", state="disabeld", command=self.on_cancel_btn)
+        self.start_btn.grid(column=0, row=2, columnspan=5, sticky=EW)
+        self.cancel_btn.grid(column=5, row=2, columnspan=5, sticky=EW)
+
+        # 进度条
+        self.progress_var = DoubleVar()
+        self.progress_var.set(0)
+        self.progress_bar = Progressbar(self.rec_main_win, maximum=100, mode="determinate", variable=self.progress_var)
+        self.progress_bar.grid(column=0, row=3, columnspan=10, sticky=EW)
+
+        # 进度Label
+        self.progress_label_var = StringVar()
+        self.progress_label_var.set("当前无任务")
+        self.progress_label = Label(self.rec_main_win, textvariable=self.progress_label_var)
+        self.progress_label.grid(column=0, row=4, columnspan=10, sticky=E)
+
+        # 版权说明
+        self.author_desc_label = Label(self.rec_main_win, text=AUTHOR_DESC)
+        self.author_desc_label.grid(column=0, row=5, columnspan=10, sticky=E)
+
+
+    def on_start_btn(self):
+        pass
+
+    def on_cancel_btn(self):
+        pass
+
 def main():
+
     ui = QrAnyTransUI()
     ui.run()
 

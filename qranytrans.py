@@ -16,7 +16,7 @@ from transfer.TransferV1 import CODE_PROT_SINGLE_CLR, DATA_PROT_BYTES, DATA_PROT
 app_version = "1.0 Beta"
 # 最大50M
 MAX_FILE_SIZE = 1024 * 1024 * 50
-CANVAS_SIDE_SIZE = 400
+CANVAS_SIDE_SIZE = 600
 
 AUTHOR_DESC = f"版本: {app_version}  ©HONG Xiao hongxiao95@hotmail.com"
 
@@ -302,7 +302,7 @@ class QrAnyTransUI():
             self.source_bio.write(self.source_file.read())
         
         # 加载到app中
-        self.transfer = TransferV1(self.pure_file_name, self.source_bio, DATA_PROT_BYTES, DATA_PROT_V_1, CODE_PROT_SINGLE_CLR)
+        self.transfer = TransferV1(self.pure_file_name, self.source_bio, DATA_PROT_BYTES, DATA_PROT_V_1, CODE_PROT_SINGLE_CLR, qr_version=30)
 
         self.update_tip(f"文件初始化完成, Meta帧 / {self.transfer.total_batch_count}帧")
     

@@ -72,7 +72,7 @@ class TransferV1(TransferBase):
 
         # 计算当前方案下单码可承载数据字节数
         # 查表取得总字节数，总字节数-固定meta大小-扩展meta大小 = 有效数据字节数
-        total_capcity = constants.v_max_data_dict[self.version]
+        total_capcity = int(constants.v_max_data_dict[self.version] / 40 * 29) # 应对base64
         self.frame_pure_data_size_byte = total_capcity - DATA_F_META_SIZE_BYTE - self.ext_meta_size
 
         self.total_batch_count = int(math.ceil(self.file_size_Byte / self.frame_pure_data_size_byte))
@@ -132,9 +132,10 @@ class TransferV1(TransferBase):
 
         main_data_obj = MainDataBytesV1(pure_data_bytes, self.index, self.total_batch_count, self.trans_uuid)
 
-        qr = qrcode.QRCode(version=self.version, mask_pattern=constants.DEFAULT_MASK_PATTERN)
+        qr = qrcode.QRCode(version=self.version, mask_pattern=constants.DEFAULT_MASK_PATTERN, box_size=15, border=6)
         try:
-            qr.add_data(QRData(main_data_obj.get_total_data_bytes(), mode=MODE_8BIT_BYTE))
+            # qr.add_data(QRData(main_data_obj.get_total_data_bytes(), mode=MODE_8BIT_BYTE))
+            qr.add_data(QRData(base64.b64encode(main_data_obj.get_total_data_bytes()), mode=MODE_8BIT_BYTE))
             im = qr.make_image()
             return im
         except Exception as e:
@@ -290,7 +291,7 @@ class MainDataBytesV1():
         # 后16字节是本帧MD5：构成为 本帧数据流+str(当前帧数).encode()+str(总帧数).encode()+transferuuid.encode() 之后算md5
 
         # 计算partMD5
-        md5_source = self.data_bytes + bytes(str(self.cur_index), encoding="utf-8") + bytes(str(self.total_frame), encoding="utf-8") + bytes(self.transfer_uuid, encoding="utf-8")
+        md5_source = self.data_bytes + bytes(str(self.cur_index), encoding="utf-8") + bytes(self.transfer_uuid, encoding="utf-8")
         self.data_md5_str = hashlib.md5(md5_source).hexdigest()
         # 当前帧转bytes
         meta_1_num = self.cur_index

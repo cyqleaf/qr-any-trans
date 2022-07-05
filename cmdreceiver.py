@@ -52,6 +52,7 @@ def main():
                 file_md5 = hand_shake_jsonobj["main_data"]["file_md5"]
 
                 data_prot = hand_shake_jsonobj["main_data"]["data_prot"]
+                total_frame_count = hand_shake_jsonobj["main_data"]["total_data_frame_count"]
                 if data_prot != "BYTES":
                     print(f"数据协议{data_prot}不支持")
                     return
@@ -75,7 +76,7 @@ def main():
 
                 pure_data_stream = decode_bytes[36 + ext_meta_use:]
 
-                if check_part_md5(transfer_uuid, pure_data_stream, cur_frame, rec_part_md5) == False:
+                if check_part_md5(transfer_uuid, pure_data_stream, cur_frame, total_frame_count ,rec_part_md5) == False:
                     print(f"第{cur_frame}帧md5异常！")
                 
                 rec_file_obj.write(pure_data_stream)
@@ -93,8 +94,8 @@ def main():
 
     pass
 
-def check_part_md5(transfer_uuid, pure_stream, cur_frame, target_md5):
-    md5_source = pure_stream + bytes(str(cur_frame), encoding="utf-8") + bytes(transfer_uuid, encoding="utf-8")
+def check_part_md5(transfer_uuid, pure_stream, cur_frame, total_frame, target_md5):
+    md5_source = pure_stream + bytes(str(cur_frame), encoding="utf-8") + bytes(str(total_frame), encoding="utf-8") + bytes(transfer_uuid, encoding="utf-8")
     calc_md5 = hashlib.md5(md5_source).hexdigest()
     return calc_md5 == target_md5
 

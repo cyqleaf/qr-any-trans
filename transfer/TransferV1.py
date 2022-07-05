@@ -192,7 +192,7 @@ class TransferV1(TransferBase):
 
 
     def _gen_handshake_pkg(self):
-        handshake_data = HandshakeDataV1(self.file_name, int(self.file_size_Byte / 1024), self.file_type, self.file_md5, self.data_prot,\
+        handshake_data = HandshakeDataV1(self.file_name, int(self.file_size_Byte / 1024), self.file_type, self.file_md5, self.total_batch_count, self.data_prot,\
             self.data_prot_v, self.confirm_method)
 
         hand_shake_pkg = HandshakePkgV1(True, StatusCode.OK, "ok", self.trans_uuid, handshake_data)
@@ -205,7 +205,7 @@ class HandshakeDataV1():
     '''
     握手传输的主数据
     '''
-    def __init__(self, file_name:str, file_size_kB:int, file_type:str, file_md5:str, data_prot:str, data_prot_v:str, confirm_method:int = ConfirmMethod.NO_CFM):
+    def __init__(self, file_name:str, file_size_kB:int, file_type:str, file_md5:str, total_data_frame_count:int, data_prot:str, data_prot_v:str, confirm_method:int = ConfirmMethod.NO_CFM):
         self.file_name = file_name
         self.file_size_kB = file_size_kB
         self.file_type = file_type
@@ -213,6 +213,7 @@ class HandshakeDataV1():
         self.data_prot = data_prot
         self.data_prot_v = data_prot_v
         self.confirm_method = confirm_method
+        self.total_data_frame_count = total_data_frame_count
         
         pass
 
@@ -291,7 +292,7 @@ class MainDataBytesV1():
         # 后16字节是本帧MD5：构成为 本帧数据流+str(当前帧数).encode()+str(总帧数).encode()+transferuuid.encode() 之后算md5
 
         # 计算partMD5
-        md5_source = self.data_bytes + bytes(str(self.cur_index), encoding="utf-8") + bytes(self.transfer_uuid, encoding="utf-8")
+        md5_source = self.data_bytes + bytes(str(self.cur_index), encoding="utf-8") + bytes(str(self.total_frame), encoding="utf-8") + bytes(self.transfer_uuid, encoding="utf-8")
         self.data_md5_str = hashlib.md5(md5_source).hexdigest()
         # 当前帧转bytes
         meta_1_num = self.cur_index

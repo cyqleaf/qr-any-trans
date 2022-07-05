@@ -3,6 +3,7 @@
 from curses import meta
 from io import BytesIO
 from tkinter import Image
+from unittest.mock import patch
 from transfer.TransConfigBase import ConfirmMethod, StatusCode, TransferBase
 from transfer import StringUtil
 import hashlib, json, base64, math, uuid
@@ -89,6 +90,21 @@ class TransferV1(TransferBase):
 
         self.main_data_list = []
 
+        # 补丁模式默认关闭
+        self.patch_mode = False
+        self.patch_frames = []
+        self.patchs_pointer = 0
+
+    def open_patchs(self, patch_frames:list):
+        self.patch_mode = True
+        self.patch_frames = [int(x) for x in patch_frames]
+        self.patchs_pointer = 0
+        self.index=self.patch_frames[self.patchs_pointer]
+
+    def close_patchs(self):
+        self.patch_mode = False
+        self.patch_frames = []
+        self.patchs_pointer = 0
 
     def reset_transfer_state(self):
         '''
@@ -96,15 +112,27 @@ class TransferV1(TransferBase):
         '''
         self.file_bio.seek(0,0)
         self.index = 0
+        self.close_patchs()
 
 
 
     def next_batch(self):
-        if self.index == self.total_batch_count - 1:
-            return False
+        # 常规模式
+        if self.patch_mode is False:
+            if self.index == self.total_batch_count - 1:
+                return False
+            else:
+                self.index += 1
+                return self.index
+        # 补丁模式
         else:
-            self.index += 1
-            return self.index
+            if self.patchs_pointer == len(self.patch_frames) - 1:
+                return False
+            else:
+                self.patchs_pointer += 1
+                self.index = self.patch_frames[self.patchs_pointer]
+                return self.index
+
 
     def gen_handshake_qr(self) -> Image:
         json_str = self.hand_shake_pkg.gen_hspkg_json()

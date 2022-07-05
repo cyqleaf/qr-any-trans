@@ -13,12 +13,23 @@ def main():
     if len(sys.argv) < 2:
         print("请提供文件名")
         return
+    print(f"准备解析{len(sys.argv) - 1}个文件，其中，1个主文件，{len(sys.argv)} 个补丁文件")
     if os.path.isfile(sys.argv[1]) == False:
-        print("请提供合法文件名")
+        print(f"主文件{sys.argv[1]}不存在，请提供合法文件名")
         return
+    for i in range(2,len(sys.argv)):
+        if os.path.isfile(sys.argv[i]) == False:
+            print(f"补丁文件{sys.argv[i]} 不存在，请提供合法文件名")
+            return
 
+    # 主视频文件名
     file_name = sys.argv[1]
     # file_name = "~/Downloads/IMG_0560.MOV"
+
+    # 补丁视频文件名
+    patch_files = sys.argv[2:]
+
+    # TODO 补充补丁文件解析、设立文件内容缓冲区
 
     cap = cv2.VideoCapture(file_name)
     video_frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
@@ -58,6 +69,8 @@ def main():
                     return
                 rec_file_obj = open(rec_file_name,"wb")
                 wait_for_meta = False
+                c_index += 1
+                print(f"scaned {c_index:5d}, found{found:5d}\r",end="")
             else:
                 #处理数据帧
                 decode_bytes = base64.b64decode(cur_data)
@@ -80,19 +93,13 @@ def main():
                     print(f"第{cur_frame}帧md5异常！")
                 
                 rec_file_obj.write(pure_data_stream)
+                c_index += 1
+                print(f"scaned {c_index:5d}, found{found:5d}\r",end="")
                 if has_next == False:
                     rec_file_obj.close()
+                    print(f"\nFound Last Frame, File Saved to {rec_file_name}")
                     break
-
-            # 处理收到的UNIQUE数据
-            
-        c_index += 1
-        print(f"scaned {c_index:5d}, found{found:5d}\r",end="")
-    
-    # rec_file_obj.close()
-
-
-    pass
+    return
 
 def check_part_md5(transfer_uuid, pure_stream, cur_frame, total_frame, target_md5):
     md5_source = pure_stream + bytes(str(cur_frame), encoding="utf-8") + bytes(str(total_frame), encoding="utf-8") + bytes(transfer_uuid, encoding="utf-8")

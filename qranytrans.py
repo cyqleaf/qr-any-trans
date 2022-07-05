@@ -16,7 +16,7 @@ from transfer.TransferV1 import CODE_PROT_SINGLE_CLR, DATA_PROT_BYTES, DATA_PROT
 app_version = "1.0 Beta"
 # 最大50M
 MAX_FILE_SIZE = 1024 * 1024 * 50
-CANVAS_SIDE_SIZE = 600
+CANVAS_SIDE_SIZE = 500
 
 AUTHOR_DESC = f"版本: {app_version}  ©HONG Xiao hongxiao95@hotmail.com"
 
@@ -83,12 +83,24 @@ class QrAnyTransUI():
         self.pause_btn.grid(column=4, row=10, columnspan=2, sticky=EW)
         self.stop_btn.grid(column=6, row=10, columnspan=2, sticky=EW)
 
+        # 补帧
+        self.patch_frame_checkbtn_var = BooleanVar()
+        self.patch_frame_checkbtn_var.set(False)
+        self.patch_frame_checkbtn = Checkbutton(self.main_win, onvalue=True, offvalue=False, text="补帧", variable=self.patch_frame_checkbtn_var)
+        
+        self.patch_frames_var = StringVar()
+        self.patch_frames_var.set("")
+        self.patch_entry = Entry(self.main_win, textvariable=self.patch_frames_var)
+
+        self.patch_frame_checkbtn.grid(column=0, row=11, sticky=EW)
+        self.patch_entry.grid(column=1, row=11, columnspan=7, sticky=EW)
+
         # 上一帧 下一帧
         self.prev_frame_btn = Button(self.main_win, text="上一帧")
         self.next_frame_btn = Button(self.main_win, text="下一帧")
 
-        self.prev_frame_btn.grid(column=0, row=11, columnspan=2, sticky=EW)
-        self.next_frame_btn.grid(column=2, row=11, columnspan=2, sticky=EW)
+        self.prev_frame_btn.grid(column=0, row=12, columnspan=1, sticky=EW)
+        self.next_frame_btn.grid(column=1, row=12, columnspan=3, sticky=EW)
 
         # 跳转到某帧
         self.skip_spin_box = Spinbox(self.main_win, from_=0, to=1000, value=0, increment=1, validate="focus", validatecommand=self._check_skip_frame_spinbox, width=10)
@@ -96,10 +108,10 @@ class QrAnyTransUI():
         self.skip_after_label = Label(self.main_win, text="帧")
         self.skip_go_btn = Button(self.main_win, text="Go")
 
-        self.skip_prev_lable.grid(column=4, row=11, sticky=EW)
-        self.skip_spin_box.grid(column=5, row=11)
-        self.skip_after_label.grid(column=6, row=11, sticky=EW)
-        self.skip_go_btn.grid(column=7, row=11, sticky=EW)
+        self.skip_prev_lable.grid(column=4, row=12, sticky=EW)
+        self.skip_spin_box.grid(column=5, row=12)
+        self.skip_after_label.grid(column=6, row=12, sticky=EW)
+        self.skip_go_btn.grid(column=7, row=12, sticky=EW)
 
         # 执行信息
         self.file_size_var = StringVar()
@@ -114,24 +126,24 @@ class QrAnyTransUI():
         self.reset_tip()
         self.cur_frame_label = Label(self.main_win, textvariable=self.cur_tips)
 
-        self.file_size_label.grid(column=0, row=12, columnspan=2, sticky=W)
-        self.file_speed_label.grid(column=2, row=12, columnspan=3, sticky=W)
-        self.cur_frame_label.grid(column=5, row=12, columnspan=3, sticky=E)
+        self.file_size_label.grid(column=0, row=13, columnspan=2, sticky=W)
+        self.file_speed_label.grid(column=2, row=13, columnspan=3, sticky=W)
+        self.cur_frame_label.grid(column=5, row=13, columnspan=3, sticky=E)
 
 
         # 进度条
         self.progress_var = IntVar()
         self.progress_var.set(0)
         self.progress_bar = Progressbar(self.main_win, maximum=100, variable=self.progress_var, mode="determinate")
-        self.progress_bar.grid(column=0, row=13, columnspan=8, sticky=EW)
+        self.progress_bar.grid(column=0, row=14, columnspan=8, sticky=EW)
 
         # 接收
         self.receive_btn = Button(self.main_win, text="收", command=self.on_rec_btn)
-        self.receive_btn.grid(column=0, row=14, sticky=W)
+        self.receive_btn.grid(column=0, row=15, sticky=W)
 
         # 作者信息
         self.author_info_label = Label(self.main_win, text=AUTHOR_DESC, foreground="gray")
-        self.author_info_label.grid(column=0, row=14, columnspan=8, sticky=E)
+        self.author_info_label.grid(column=0, row=15, columnspan=8, sticky=E)
 
 
         return
@@ -302,7 +314,7 @@ class QrAnyTransUI():
             self.source_bio.write(self.source_file.read())
         
         # 加载到app中
-        self.transfer = TransferV1(self.pure_file_name, self.source_bio, DATA_PROT_BYTES, DATA_PROT_V_1, CODE_PROT_SINGLE_CLR, qr_version=30)
+        self.transfer = TransferV1(self.pure_file_name, self.source_bio, DATA_PROT_BYTES, DATA_PROT_V_1, CODE_PROT_SINGLE_CLR, qr_version=31)
 
         self.update_tip(f"文件初始化完成, Meta帧 / {self.transfer.total_batch_count}帧")
     
@@ -324,10 +336,40 @@ class QrAnyTransUI():
         self.buffer_index = 1 - self.buffer_index
         self.main_win.update_idletasks()
 
+    # 补丁模式时，检查输入帧是否合法
+    def _check_patchs_legal(self, patchs_str:str, total_frame:int) -> tuple:
+        patchs_num = []
+        try:
+            patchs_num = sorted(set([int(x) for x in list(filter(lambda y:y.strip() != "", patchs_str.split(",")))]))
+
+            if len(patchs_num) == 0:
+                return (False, "无有效的补丁帧")
+                
+            illegal_num = list(filter(lambda x: x < 0 or x >= total_frame, patchs_num))
+
+            if len(illegal_num) > 0:
+                return (False, f"以下帧数超过合法帧[0,{total_frame}):{illegal_num}")
+            
+            return (True, patchs_num)
+        except ValueError as e:
+            messagebox.showerror("出错",f"解析补丁出错, ValueError:{e}")
+            return (False, f"解析补丁出错, ValueError:{e}")
+
     def run_task(self):
 
         task_st = time.time()
         handled_frames = 0
+
+        # 处理补丁模式
+        if self.patch_frame_checkbtn_var.get() is True:
+            check_res = self._check_patchs_legal(self.patch_frames_var.get(), self.transfer.total_batch_count)
+            if check_res[0] is True:
+                self.transfer.open_patchs(check_res[1])
+            else:
+                messagebox.showerror("补丁模式错误", check_res[1])
+        else:
+            self.transfer.close_patchs()
+
 
         handshake_im = self.transfer.gen_handshake_qr()
         tk_im = self._im_to_canvas_im(handshake_im)

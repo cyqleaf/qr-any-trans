@@ -42,6 +42,10 @@ def main():
     file_md5 = ""
     pre_frame = -1
 
+    rec_file_bytes_buffer = []
+
+    miss_frame_indexes = []
+
 
     c_index = 0
     pre_data = []
@@ -64,6 +68,7 @@ def main():
 
                 data_prot = hand_shake_jsonobj["main_data"]["data_prot"]
                 total_frame_count = hand_shake_jsonobj["main_data"]["total_data_frame_count"]
+                rec_file_bytes_buffer = [[] for i in total_frame_count]
                 if data_prot != "BYTES":
                     print(f"数据协议{data_prot}不支持")
                     return
@@ -76,21 +81,29 @@ def main():
                 decode_bytes = base64.b64decode(cur_data)
                 fix_head = int.from_bytes(decode_bytes[:4], byteorder="big")
 
+                # 获取是否有后续
                 has_next = ((fix_head & 0x80000000) >> 31)== 1
+
+                # 获取是否使用额外存储空间
                 ext_meta_use = ((fix_head & 0x7e000000) >> 25)
-                cur_frame = (fix_head & 0x01ffffff)
 
-                if cur_frame - pre_frame > 1:
-                    print(f"发生跳帧,{pre_frame}后识别出{cur_frame}, 缺失{str(list(range(pre_frame+1, cur_frame)))}帧")
+                # 获取当前帧index
+                cur_frame_index = (fix_head & 0x01ffffff)
+
+                # 发生中间丢帧
+                if cur_frame_index - pre_frame > 1:
+                    tmp_miss_frames = list(range(pre_frame + 1, cur_frame_index))
+                    print(f"发生跳帧,{pre_frame}后识别出{cur_frame_index}, 缺失{str(tmp_miss_frames)}帧")
+                    miss_frame_indexes.extend(tmp_miss_frames)
                 
-                pre_frame = cur_frame
+                pre_frame = cur_frame_index
 
-                rec_part_md5 = decode_bytes[4:36].decode("utf-8")
+                rec_part_md5 = decode_bytes[4:20].decode("utf-8")
 
-                pure_data_stream = decode_bytes[36 + ext_meta_use:]
+                pure_data_stream = decode_bytes[20 + ext_meta_use:]
 
-                if check_part_md5(transfer_uuid, pure_data_stream, cur_frame, total_frame_count ,rec_part_md5) == False:
-                    print(f"第{cur_frame}帧md5异常！")
+                if check_part_md5(transfer_uuid, pure_data_stream, cur_frame_index, total_frame_count ,rec_part_md5) == False:
+                    print(f"第{cur_frame_index}帧md5异常！")
                 
                 rec_file_obj.write(pure_data_stream)
                 c_index += 1
@@ -103,7 +116,7 @@ def main():
 
 def check_part_md5(transfer_uuid, pure_stream, cur_frame, total_frame, target_md5):
     md5_source = pure_stream + bytes(str(cur_frame), encoding="utf-8") + bytes(str(total_frame), encoding="utf-8") + bytes(transfer_uuid, encoding="utf-8")
-    calc_md5 = hashlib.md5(md5_source).hexdigest()
+    calc_md5 = hashlib.md5(md5_source).hexdigest()[8:24]
     return calc_md5 == target_md5
 
 if __name__ == "__main__":

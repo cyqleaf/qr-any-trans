@@ -317,11 +317,11 @@ class MainDataBytesV1():
         self.total_data = None
 
         # 分配：前4字节：1bit 是否有后续帧, 6bit决定使用预留meta空间的大小，最多63字节，剩下空间是int型当前帧数，最多可以1600万；
-        # 后16字节是本帧MD5：构成为 本帧数据流+str(当前帧数).encode()+str(总帧数).encode()+transferuuid.encode() 之后算md5
+        # 后16字节是本帧MD5：构成为 本帧数据流+str(当前帧数).encode()+str(总帧数).encode()+transferuuid.encode() 之后算md5,取中间16位，即str[8:24]
 
         # 计算partMD5
         md5_source = self.data_bytes + bytes(str(self.cur_index), encoding="utf-8") + bytes(str(self.total_frame), encoding="utf-8") + bytes(self.transfer_uuid, encoding="utf-8")
-        self.data_md5_str = hashlib.md5(md5_source).hexdigest()
+        self.data_md5_str = hashlib.md5(md5_source).hexdigest()[8:24]
         # 当前帧转bytes
         meta_1_num = self.cur_index
         # 置后续帧标志位

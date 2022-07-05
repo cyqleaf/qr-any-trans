@@ -49,7 +49,7 @@ def main():
     while c_index < video_frame_count:
         _, im = cap.read()
         decode_res = pyzbar.decode(im)
-        if len(decode_res) > 0 and decode_res[0].data != pre_data:
+        if len(decode_res) > 0 and decode_res[0].data[:50] != pre_data[:50]:
             found += 1
             pre_data = decode_res[0].data
             cur_data = decode_res[0].data

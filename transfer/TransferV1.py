@@ -1,6 +1,5 @@
 #coding:utf-8
 
-from curses import meta
 from io import BytesIO
 from tkinter import Image
 from unittest.mock import patch

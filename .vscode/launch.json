@@ -12,7 +12,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["/Users/hongxiao/Downloads/IMG_0571.MOV"],
+            "args": ["/Users/hongxiao/Downloads/IMG_0601.MOV"],
         },
         {
             "name": "Py当前文件+库",

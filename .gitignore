@@ -129,8 +129,8 @@ dmypy.json
 .pyre/
 
 venv/
-.pdf
-.jpg
-.png
-.mov
-.mp4
+*.pdf
+*.jpg
+*.png
+*.mov
+*.mp4

@@ -2,7 +2,6 @@
 
 from io import BytesIO
 from tkinter import Image
-from unittest.mock import patch
 from transfer.TransConfigBase import ConfirmMethod, StatusCode, TransferBase
 from transfer import StringUtil
 import hashlib, json, base64, math, uuid

@@ -35,7 +35,7 @@ class DecodeInfo():
         decode_md5 = hashlib.md5(bio.read()).hexdigest()
 
         print(f"文件 [{self.rec_file_name}] 已写入。{'但由于有丢帧，不保证准确性' if not file_complete else ''}")
-        print(f"已校验文件MD5, {'与源文件一致！' if decode_md5.strip() == self.file_md5 else '与源文件有出入，请谨慎采纳'}。 接收文件MD5:{[decode_md5]}\n 源文件的MD5:{self.file_md5}")
+        print(f"已校验文件MD5, {'与源文件一致！' if decode_md5.strip() == self.file_md5 else '与源文件有出入，请谨慎采纳。'} \n接收文件MD5:{[decode_md5]}\n 源文件的MD5:{[self.file_md5]}")
 
     def write_tmp_file(self):
         if len(self.miss_frame_indexes) == 0:
@@ -153,6 +153,18 @@ def main():
 
     return
 
+# 检查数据在前若干个二维码中有无出现过
+def _check_in_predata(target_data:bytes, pre_datas:list, pre_data_index:int = 0):
+    for i in range(pre_data_index, -1, -1):
+        if target_data == pre_datas[i]:
+            return True
+    for i in range(len(pre_datas) - 1, pre_data_index, -1):
+        if target_data == pre_datas[i]:
+            return True
+    
+    return False
+
+
 def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo) -> bool:
     cap = cv2.VideoCapture(video_file_name)
     video_frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
@@ -165,82 +177,97 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo) ->
     pre_frame = -1
 
     c_index = 0
-    pre_data = []
+
+    # 一个取余滚动的前序数据存储buffer， 记录前20张二维码的前30字节
+    
+    PRE_DATA_BUF_SIZE = 20
+    pre_datas = [0 for i in range(PRE_DATA_BUF_SIZE)]
+    pre_data_index = 0
+
     found = 0
     has_next = True
     last_detected_frame_index = 0
+    
     while c_index < video_frame_count:
         _, im = cap.read()
-        decode_res = list(filter(lambda dr: dr.type == "QRCODE", pyzbar.decode(im)))
+        decode_res_list = list(filter(lambda dr: dr.type == "QRCODE", pyzbar.decode(im)))
         c_index += 1
-        if len(decode_res) > 0 and decode_res[0].data[:30] != pre_data[:30]:
-            found += 1
-            pre_data = decode_res[0].data
-            cur_data = decode_res[0].data
 
-            # 处理meta帧
-            if wait_for_meta is True:
-                hand_shake_str = bytes(cur_data).decode("utf-8")
-                hand_shake_jsonobj = json.loads(hand_shake_str)
-                transfer_uuid = hand_shake_jsonobj["uuid"]
-                rec_file_name = hand_shake_jsonobj["main_data"]["file_name"]
-                file_md5 = hand_shake_jsonobj["main_data"]["file_md5"]
+        for decode_res in decode_res_list:
+            if len(decode_res) > 0 and _check_in_predata(decode_res.data[:30], pre_datas, pre_data_index) == False:
+                found += 1
+                pre_data_index  = (pre_data_index + 1) % PRE_DATA_BUF_SIZE
+                pre_datas[pre_data_index] = decode_res.data[:30]
 
-                data_prot = hand_shake_jsonobj["main_data"]["data_prot"]
-                total_frame_count = hand_shake_jsonobj["main_data"]["total_data_frame_count"]
+                cur_data = decode_res.data
 
-                # 首次，记录信息，补丁，核对信息，但，transferUUID是每次不同的，不必核对
-                if is_patch == False:
-                    decode_info.rec_file_name = rec_file_name
-                    decode_info.file_md5 = file_md5
-                    decode_info.total_frame_count = total_frame_count
-                    decode_info.file_bytes_buffer =  [[] for i in range(total_frame_count)]
-                    print(f"接收文件 {decode_info.rec_file_name}  中")
-                else:
-                    if decode_info.file_md5 != file_md5:
-                        raise Exception(f"补丁MD5 {file_md5} 与原始文件MD5{decode_info.file_md5}不同")
+                # 处理meta帧
+                if wait_for_meta is True:
+                    hand_shake_str = bytes(cur_data).decode("utf-8")
+                    hand_shake_jsonobj = json.loads(hand_shake_str)
+                    transfer_uuid = hand_shake_jsonobj["uuid"]
+                    rec_file_name = hand_shake_jsonobj["main_data"]["file_name"]
+                    file_md5 = hand_shake_jsonobj["main_data"]["file_md5"]
+
+                    data_prot = hand_shake_jsonobj["main_data"]["data_prot"]
+                    total_frame_count = hand_shake_jsonobj["main_data"]["total_data_frame_count"]
+
+                    # 首次，记录信息，补丁，核对信息，但，transferUUID是每次不同的，不必核对
+                    if is_patch == False:
+                        decode_info.rec_file_name = rec_file_name
+                        decode_info.file_md5 = file_md5
+                        decode_info.total_frame_count = total_frame_count
+                        decode_info.file_bytes_buffer =  [[] for i in range(total_frame_count)]
+                        print(f"接收文件 {decode_info.rec_file_name}  中")
+                    else:
+                        if decode_info.file_md5 != file_md5:
+                            raise Exception(f"补丁MD5 {file_md5} 与原始文件MD5{decode_info.file_md5}不同")
+                            return
+
+                    if data_prot != "BYTES":
+                        print(f"数据协议{data_prot}不支持")
                         return
-
-                if data_prot != "BYTES":
-                    print(f"数据协议{data_prot}不支持")
-                    return
-                # rec_file_obj = open(rec_file_name,"wb")
-                wait_for_meta = False
-                print(f"scaned {c_index:5d}, found{found:5d}\r",end="")
-            else:
-                #处理数据帧
-                decode_bytes = base64.b85decode(cur_data)
-                fix_head = int.from_bytes(decode_bytes[:4], byteorder="big")
-
-                # 获取是否有后续
-                has_next = ((fix_head & 0x80000000) >> 31)== 1
-
-                # 获取是否使用额外存储空间
-                ext_meta_use = ((fix_head & 0x7e000000) >> 25)
-
-                # 获取当前帧index
-                cur_frame_index = (fix_head & 0x01ffffff)
-
-                # 发生中间丢帧
-                if is_patch == False and cur_frame_index - pre_frame > 1:
-                    tmp_miss_frames = list(range(pre_frame + 1, cur_frame_index))
-                    print(f"发生丢帧,{pre_frame}后识别出{cur_frame_index}, 缺失{str(tmp_miss_frames)}帧")
-                
-                pre_frame = cur_frame_index
-
-                rec_part_md5 = decode_bytes[4:20].decode("utf-8")
-
-                pure_data_stream = decode_bytes[20 + ext_meta_use:]
-
-                if check_part_md5(transfer_uuid, pure_data_stream, cur_frame_index, total_frame_count ,rec_part_md5) == False:
-                    print(f"第{cur_frame_index}帧md5异常！计入丢帧")
+                    # rec_file_obj = open(rec_file_name,"wb")
+                    wait_for_meta = False
+                    print(f"scaned {c_index:5d}, found{found:5d}\r",end="")
                 else:
-                    decode_info.file_bytes_buffer[cur_frame_index] = pure_data_stream
-                
-                print(f"scaned {c_index:5d}, found{found:5d}\r",end="")
-                last_detected_frame_index = cur_frame_index
-                if is_patch == False and has_next == False:
-                    break
+                    #处理数据帧
+                    decode_bytes = base64.b85decode(cur_data)
+                    fix_head = int.from_bytes(decode_bytes[:4], byteorder="big")
+
+                    # 获取是否有后续
+                    has_next = ((fix_head & 0x80000000) >> 31)== 1
+
+                    # 获取是否使用额外存储空间
+                    ext_meta_use = ((fix_head & 0x7e000000) >> 25)
+
+                    # 获取当前帧index
+                    cur_frame_index = (fix_head & 0x01ffffff)
+
+                    # 一图多码识别无法中途判断丢帧
+                    # # 发生中间丢帧
+                    # if is_patch == False and cur_frame_index - pre_frame > 1:
+                    #     tmp_miss_frames = list(range(pre_frame + 1, cur_frame_index))
+                    #     print(f"发生丢帧,{pre_frame}后识别出{cur_frame_index}, 缺失{str(tmp_miss_frames)}帧")
+                    
+                    # pre_frame = cur_frame_index
+
+                    rec_part_md5 = decode_bytes[4:20].decode("utf-8")
+
+                    pure_data_stream = decode_bytes[20 + ext_meta_use:]
+
+                    if check_part_md5(transfer_uuid, pure_data_stream, cur_frame_index, total_frame_count ,rec_part_md5) == False:
+                        print(f"第{cur_frame_index}帧md5异常！计入丢帧")
+                    else:
+                        decode_info.file_bytes_buffer[cur_frame_index] = pure_data_stream
+                    
+                    print(f"scaned {c_index:5d}, found{found:5d}\r",end="")
+                    last_detected_frame_index = cur_frame_index
+
+                    # 其实没用
+                    if is_patch == False and has_next == False:
+                        
+                        break
     
     # 检查是否缺失末帧
     if is_patch == False and last_detected_frame_index < total_frame_count - 1:

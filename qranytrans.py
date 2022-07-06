@@ -10,6 +10,7 @@ import os
 from io import BytesIO
 from PIL import Image, ImageTk
 import time
+
 from transfer.TransferV1 import CODE_PROT_SINGLE_CLR, DATA_PROT_BYTES, DATA_PROT_V_1, TransferV1
 
 
@@ -17,6 +18,11 @@ app_version = "1.0 Beta"
 # 最大50M
 MAX_FILE_SIZE = 1024 * 1024 * 50
 CANVAS_SIDE_SIZE = 500
+CANVAS_SIDE_PADDING_RATE = 1.1
+CANVAS_COL = 2
+
+IMAGE_BUFFER_SIZE = 6
+
 
 AUTHOR_DESC = f"版本: {app_version}  ©HONG Xiao hongxiao95@hotmail.com"
 
@@ -25,8 +31,8 @@ class QrAnyTransUI():
         self.main_win = Tk()
         self.main_win.wm_title("任意传输器")
         self.pure_file_name = ""
-        self.img_tk_buffer = [0,0]
-        self.img_handles = [0,0]
+        self.img_tk_buffer = [0 for i in range(IMAGE_BUFFER_SIZE)]
+        self.img_handles = [0 for i in range(IMAGE_BUFFER_SIZE)]
         self.buffer_index = 0
 
         self.source_file = None
@@ -53,7 +59,7 @@ class QrAnyTransUI():
         self.choose_file_btn.grid(column=6, row=0, columnspan=2, sticky=EW)
 
         # 二维码展示区域
-        self.qr_canvas = Canvas(self.main_win, width=CANVAS_SIDE_SIZE, height=CANVAS_SIDE_SIZE, background="white")
+        self.qr_canvas = Canvas(self.main_win, width=int(CANVAS_SIDE_SIZE * CANVAS_SIDE_PADDING_RATE * CANVAS_COL), height=CANVAS_SIDE_SIZE, background="white")
         self.qr_canvas.grid(column=0, row=1, columnspan=8, rowspan=8)
 
         # 二维码播放区域
@@ -195,8 +201,8 @@ class QrAnyTransUI():
         self.progress_var.set(0)
 
         self.qr_canvas.delete("all")
-        self.img_tk_buffer = [0,0]
-        self.img_handles = [0,0]
+        self.img_tk_buffer = [0 for i in range(IMAGE_BUFFER_SIZE)]
+        self.img_handles = [0 for i in range(IMAGE_BUFFER_SIZE)]
         self.buffer_index = 0
 
         # 重置传输速度
@@ -209,12 +215,12 @@ class QrAnyTransUI():
 
         return
 
-    def _set_file_speed_tip(self, file_speed_KB:float = 0, is_reset:bool = False):
+    def _set_file_speed_tip(self, file_speed_KB:float = 0, fps:float=0, is_reset:bool = False):
         if is_reset:
             self.file_speed_var.set("当前无速度")
             return
 
-        self.file_speed_var.set(f"均速:{file_speed_KB:.2f}KB")
+        self.file_speed_var.set(f"均速:{file_speed_KB:.2f}KB/s, fps:{fps:.2f}")
 
     def _set_file_size_tip(self, file_size_B:int = 0, is_reset = False):
         if is_reset:
@@ -326,14 +332,14 @@ class QrAnyTransUI():
         tk_im = ImageTk.PhotoImage(image=pil_im)
         return tk_im
 
-    def _draw_im_to_canvas(self, im_tk: PhotoImage):
+    def _draw_im_to_canvas(self, im_tk: PhotoImage, pos:int = 0):
         if self.img_handles[self.buffer_index] != 0:
             self.qr_canvas.delete(self.img_handles[self.buffer_index])
         
         self.img_tk_buffer[self.buffer_index] = im_tk
-        handle = self.qr_canvas.create_image(0,0, image=im_tk, anchor=NW)
+        handle = self.qr_canvas.create_image(int(pos * CANVAS_SIDE_SIZE * CANVAS_SIDE_PADDING_RATE) ,0, image=im_tk, anchor=NW)
         self.img_handles[self.buffer_index] = handle
-        self.buffer_index = 1 - self.buffer_index
+        self.buffer_index = (self.buffer_index + 1) % IMAGE_BUFFER_SIZE
         self.main_win.update_idletasks()
 
     # 补丁模式时，检查输入帧是否合法
@@ -378,6 +384,8 @@ class QrAnyTransUI():
         has_next = True
         
         st = 0
+        # 记录图像该显示在第几列，在单列模式下，始终显示在一个位置。所有列显示完了，再考虑是否暂停
+        im_pos = 0
         while has_next is True:
             if self.call_stop is True:
                 self.is_stoped = True
@@ -395,24 +403,32 @@ class QrAnyTransUI():
             tk_im = self._im_to_canvas_im(data_im)
 
             # 确保时间间隔确实是一帧显示时间
-            end  = time.time()
+            # 准备再画第一帧时，计算时间是否足够
+            if im_pos == 0:
+                end  = time.time()
 
-            # 决定帧间隔sleep
-            frame_work_time = end - st
-            frame_ideal_time = 1 / self.speed_var_int.get()
-            time_break = frame_ideal_time - frame_work_time
-            if time_break > 0:
-                time.sleep(time_break)    
+                # 决定帧间隔sleep
+                frame_work_time = end - st
+                frame_ideal_time = 1 / self.speed_var_int.get()
+                time_break = frame_ideal_time - frame_work_time
+                if time_break > 0:
+                    time.sleep(time_break)    
 
             # 绘制到画布中
-            self._draw_im_to_canvas(tk_im)
+            self._draw_im_to_canvas(tk_im, im_pos)
             handled_frames += 1
-            st = time.time()
+
+            # 第一幅qr画好开始计时
+            if im_pos == 0:
+                st = time.time()
+            im_pos = (im_pos + 1) % CANVAS_COL
 
             # 计算当前均速
             task_time = st - task_st
             total_trans_B = handled_frames * self.transfer.frame_pure_data_size_byte
-            self._set_file_speed_tip(total_trans_B / 1024 / task_time)
+
+            real_fps = self.transfer.index / task_time
+            self._set_file_speed_tip(total_trans_B / 1024 / task_time, fps=real_fps)
 
             
             # 获取当前帧

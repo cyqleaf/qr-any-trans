@@ -209,7 +209,7 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo) ->
                 print(f"scaned {c_index:5d}, found{found:5d}\r",end="")
             else:
                 #处理数据帧
-                decode_bytes = base64.b64decode(cur_data)
+                decode_bytes = base64.b85decode(cur_data)
                 fix_head = int.from_bytes(decode_bytes[:4], byteorder="big")
 
                 # 获取是否有后续

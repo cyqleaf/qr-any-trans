@@ -72,7 +72,7 @@ class TransferV1(TransferBase):
 
         # 计算当前方案下单码可承载数据字节数
         # 查表取得总字节数，总字节数-固定meta大小-扩展meta大小 = 有效数据字节数
-        total_capcity = int(constants.v_max_data_dict[self.version] / 40 * 29) # 应对base64
+        total_capcity = int(constants.v_max_data_dict[self.version] / 50 * 40) # 应对base85
         self.frame_pure_data_size_byte = total_capcity - DATA_F_META_SIZE_BYTE - self.ext_meta_size
 
         self.total_batch_count = int(math.ceil(self.file_size_Byte / self.frame_pure_data_size_byte))
@@ -162,7 +162,9 @@ class TransferV1(TransferBase):
         qr = qrcode.QRCode(version=self.version, mask_pattern=constants.DEFAULT_MASK_PATTERN, box_size=15, border=6)
         try:
             # qr.add_data(QRData(main_data_obj.get_total_data_bytes(), mode=MODE_8BIT_BYTE))
-            qr.add_data(QRData(base64.b64encode(main_data_obj.get_total_data_bytes()), mode=MODE_8BIT_BYTE))
+            # qr.add_data(QRData(base64.b64encode(main_data_obj.get_total_data_bytes()), mode=MODE_8BIT_BYTE))
+            qr.add_data(QRData(base64.b85encode(main_data_obj.get_total_data_bytes()), mode=MODE_8BIT_BYTE))
+
             im = qr.make_image()
             return im
         except Exception as e:

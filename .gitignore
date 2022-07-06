@@ -134,3 +134,7 @@ venv/
 *.png
 *.mov
 *.mp4
+*.qtt
+*.docx
+*.zip
+*.pptx

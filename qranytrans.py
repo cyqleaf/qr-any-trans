@@ -19,9 +19,10 @@ app_version = "1.0 Beta"
 MAX_FILE_SIZE = 1024 * 1024 * 50
 CANVAS_SIDE_SIZE = 500
 CANVAS_SIDE_PADDING_RATE = 1.1
-CANVAS_COL = 2
+CANVAS_COL = 3
 
 IMAGE_BUFFER_SIZE = 6
+USING_VERSION = 22
 
 
 AUTHOR_DESC = f"版本: {app_version}  ©HONG Xiao hongxiao95@hotmail.com"
@@ -320,7 +321,7 @@ class QrAnyTransUI():
             self.source_bio.write(self.source_file.read())
         
         # 加载到app中
-        self.transfer = TransferV1(self.pure_file_name, self.source_bio, DATA_PROT_BYTES, DATA_PROT_V_1, CODE_PROT_SINGLE_CLR, qr_version=25)
+        self.transfer = TransferV1(self.pure_file_name, self.source_bio, DATA_PROT_BYTES, DATA_PROT_V_1, CODE_PROT_SINGLE_CLR, qr_version=USING_VERSION)
 
         self.update_tip(f"文件初始化完成, Meta帧 / {self.transfer.total_batch_count}帧")
     
@@ -494,6 +495,32 @@ class QrReceiverUI():
         pass
 
 def main():
+    global CANVAS_COL, USING_VERSION
+    cols = -1
+    user_version = -1
+    
+    while cols == -1:
+        i_cols = input(f"每屏二维码数(1~3)，默认为{CANVAS_COL}： ")
+        if i_cols.strip() == "":
+            cols = CANVAS_COL
+        elif i_cols.strip() in [str(i) for i in range(1,4)]:
+            cols = int(i_cols)
+        else:
+            print("请输入合法数字！")
+            continue
+    
+    while user_version == -1:
+        i_user_version = input(f"数据密度(15~31),越小越慢，越大识别率越低，默认为{USING_VERSION}： ")
+        if i_user_version.strip() == "":
+            user_version = USING_VERSION
+        elif i_user_version.strip() in [str(i) for i in range(15,32)]:
+            user_version = int(i_user_version)
+        else:
+            print("请输入合法数字！")
+            continue
+
+    CANVAS_COL = cols
+    USING_VERSION = user_version
 
     ui = QrAnyTransUI()
     ui.run()

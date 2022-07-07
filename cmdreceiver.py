@@ -1,5 +1,4 @@
 #coding:utf-8
-from ast import Bytes
 import base64
 from hashlib import md5
 import hashlib
@@ -190,6 +189,7 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo) ->
     
     while c_index < video_frame_count:
         _, im = cap.read()
+
         decode_res_list = list(filter(lambda dr: dr.type == "QRCODE", pyzbar.decode(im)))
         c_index += 1
 

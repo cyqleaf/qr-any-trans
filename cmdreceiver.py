@@ -8,6 +8,7 @@ from pyzbar import pyzbar
 import json
 import traceback
 from io import BytesIO
+import time
 
 
 class DecodeInfo():
@@ -186,6 +187,9 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo) ->
     found = 0
     has_next = True
     last_detected_frame_index = 0
+
+    decode_st = time.time()
+    print()
     
     while c_index < video_frame_count:
         _, im = cap.read()
@@ -261,7 +265,9 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo) ->
                     else:
                         decode_info.file_bytes_buffer[cur_frame_index] = pure_data_stream
                     
-                    print(f"scaned {c_index:5d}, found{found:5d}\r",end="")
+                    now = time.time()
+                    
+                    print(f"\rscaned {c_index:5d}, found{found:5d}, cost:{now - decode_st:5.2f} s, est:{(video_frame_count - c_index - 1)  / (c_index / (now-decode_st + 0.001)):5.2f} s",end="")
                     last_detected_frame_index = cur_frame_index
 
                     # 其实没用

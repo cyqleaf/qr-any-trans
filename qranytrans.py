@@ -374,6 +374,7 @@ class QrAnyTransUI():
                 self.transfer.open_patchs(check_res[1])
             else:
                 messagebox.showerror("补丁模式错误", check_res[1])
+                return
         else:
             self.transfer.close_patchs()
 

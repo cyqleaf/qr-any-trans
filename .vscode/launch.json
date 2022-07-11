@@ -12,7 +12,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["/Users/hongxiao/Downloads/IMG_0601.MOV"],
+            "args": ["D:\\UserData\\hongx\\Downloads\\hessianx\\hessianx.mp4"],
         },
         {
             "name": "Py当前文件+库",

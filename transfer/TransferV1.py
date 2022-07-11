@@ -251,12 +251,13 @@ class HandshakePkgV1():
     握手数据包
     '''
 
-    def __init__(self, success:bool, status_code:int, status_msg_12:str, transfer_uuid:str, handshake_data:HandshakeDataV1):
+    def __init__(self, success:bool, status_code:int, status_msg_12:str, transfer_uuid:str, handshake_data:HandshakeDataV1, data_qrcode_version:int):
         self.success = success
         self.status_code = status_code
         self.status_msg_12 = status_msg_12
         self.pkg_version = "1.0"
         self.uuid = transfer_uuid
+        self.data_qrcode_version = data_qrcode_version
         self.main_data = handshake_data.__dict__
 
         self.main_data_md5 = self._gen_hand_shake_main_data_md5()
@@ -284,7 +285,7 @@ class HandshakePkgV1():
         多端MD5算法必须一致。
         握手包版本号_主数据md5_uuid 算md5
         '''
-        return StringUtil.get_md5_lowerhex(f"{self.pkg_version}_{self.main_data_md5}_{self.uuid}")
+        return StringUtil.get_md5_lowerhex(f"{self.pkg_version}_{self.main_data_md5}_{self.uuid}_{str(self.data_qrcode_version)}")
 
     def _gen_hand_shake_main_data_md5(self) -> str:
         '''

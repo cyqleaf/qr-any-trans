@@ -13,6 +13,7 @@ import time
 
 class DecodeInfo():
     TMP_FILE_TYPE = ".qtt"
+    OUT_PUT_DIR = "." + os.sep + "AnyReceiver"
     def __init__(self):
         self.rec_file_name = ""
         self.file_md5 = ""
@@ -23,7 +24,14 @@ class DecodeInfo():
     def write_full_file(self):
         file_complete = True
         bio = BytesIO()
-        with open(self.rec_file_name, "wb") as rec_file:
+
+        if False == os.path.exists(DecodeInfo.OUT_PUT_DIR):
+            os.mkdir(DecodeInfo.OUT_PUT_DIR)
+        elif os.path.isfile(DecodeInfo.OUT_PUT_DIR):
+            print(f"输出文件夹 [{DecodeInfo.OUT_PUT_DIR}] 被同名文件占用。请清理！")
+            return
+
+        with open(DecodeInfo.OUT_PUT_DIR + os.sep + self.rec_file_name, "wb") as rec_file:
             for i in range(len(self.file_bytes_buffer)):
                 cur_bytes = bytes(self.file_bytes_buffer[i])
                 rec_file.write(cur_bytes)
@@ -40,6 +48,12 @@ class DecodeInfo():
     def write_tmp_file(self):
         if len(self.miss_frame_indexes) == 0:
             print("Warning: 文件已无丢帧情况，但仍将按要求写入临时文件")
+
+        if False == os.path.exists(DecodeInfo.OUT_PUT_DIR):
+            os.mkdir(DecodeInfo.OUT_PUT_DIR)
+        elif os.path.isfile(DecodeInfo.OUT_PUT_DIR):
+            print(f"输出文件夹 [{DecodeInfo.OUT_PUT_DIR}] 被同名文件占用。请清理！")
+            return
 
         # 临时文件结构:base64(json) 
         '''
@@ -65,7 +79,7 @@ class DecodeInfo():
         tmp_file_base64 = base64.b64encode(tmp_file_dict_json.encode("utf-8"))
 
         tmp_file_name = self.rec_file_name + DecodeInfo.TMP_FILE_TYPE
-        with open(tmp_file_name, "wb") as tmp_file:
+        with open(DecodeInfo.OUT_PUT_DIR + os.sep + tmp_file_name, "wb") as tmp_file:
             tmp_file.write(tmp_file_base64)
 
         print(f"已写入临时文件 [{tmp_file_name}] 。")
@@ -174,6 +188,7 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo) ->
     total_frame_count = 0
     transfer_uuid = ""
     file_md5 = ""
+    data_qrcode_version = 0
     pre_frame = -1
 
     c_index = 0
@@ -186,7 +201,7 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo) ->
 
     found = 0
     has_next = True
-    last_detected_frame_index = 0
+    # last_detected_frame_index = 0
 
     decode_st = time.time()
     print()
@@ -210,6 +225,9 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo) ->
                     hand_shake_str = bytes(cur_data).decode("utf-8")
                     hand_shake_jsonobj = json.loads(hand_shake_str)
                     transfer_uuid = hand_shake_jsonobj["uuid"]
+                    if "data_qrcode_version" in hand_shake_jsonobj.keys():
+                        data_qrcode_version = hand_shake_jsonobj["data_qrcode_version"]
+                    
                     rec_file_name = hand_shake_jsonobj["main_data"]["file_name"]
                     file_md5 = hand_shake_jsonobj["main_data"]["file_md5"]
 
@@ -248,14 +266,6 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo) ->
                     # 获取当前帧index
                     cur_frame_index = (fix_head & 0x01ffffff)
 
-                    # 一图多码识别无法中途判断丢帧
-                    # # 发生中间丢帧
-                    # if is_patch == False and cur_frame_index - pre_frame > 1:
-                    #     tmp_miss_frames = list(range(pre_frame + 1, cur_frame_index))
-                    #     print(f"发生丢帧,{pre_frame}后识别出{cur_frame_index}, 缺失{str(tmp_miss_frames)}帧")
-                    
-                    # pre_frame = cur_frame_index
-
                     rec_part_md5 = decode_bytes[4:20].decode("utf-8")
 
                     pure_data_stream = decode_bytes[20 + ext_meta_use:]
@@ -267,18 +277,18 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo) ->
                     
                     now = time.time()
                     
-                    print(f"\rscaned {c_index:5d}, found{found:5d}, cost:{now - decode_st:5.2f} s, est:{(video_frame_count - c_index - 1)  / (c_index / (now-decode_st + 0.001)):5.2f} s",end="")
-                    last_detected_frame_index = cur_frame_index
+                    print(f"\r{ ('version:' + data_qrcode_version + ',') if data_qrcode_version != 0 else ''} scaned {c_index:5d}, found{found:5d}, cost:{now - decode_st:5.2f} s, est:{(video_frame_count - c_index - 1)  / (c_index / (now-decode_st + 0.001)):5.2f} s",end="")
+                    # last_detected_frame_index = cur_frame_index
 
                     # 其实没用
                     if is_patch == False and has_next == False:
                         
                         break
     
-    # 检查是否缺失末帧
-    if is_patch == False and last_detected_frame_index < total_frame_count - 1:
-        tmp_miss_frames = list(range(last_detected_frame_index+ 1, total_frame_count))
-        print(f"发生丢帧,{last_detected_frame_index}后未识别直至末尾。缺失{str(tmp_miss_frames)}帧")
+    # # 检查是否缺失末帧
+    # if is_patch == False and last_detected_frame_index < total_frame_count - 1:
+    #     tmp_miss_frames = list(range(last_detected_frame_index+ 1, total_frame_count))
+    #     print(f"发生丢帧,{last_detected_frame_index}后未识别直至末尾。缺失{str(tmp_miss_frames)}帧")
 
     # 计算丢帧情况
     decode_info.miss_frame_indexes = []
@@ -288,7 +298,7 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo) ->
     
 
     if len(decode_info.miss_frame_indexes) > 0:
-        print(f"本次识别后总丢帧情况：{decode_info.miss_frame_indexes}")
+        print(f"本次识别后总丢帧{len(decode_info.miss_frame_indexes):5d},丢帧率{(len(decode_info.miss_frame_indexes) / decode_info.total_frame_count) * 100:.2f} %,丢帧详情：{decode_info.miss_frame_indexes}")
         return False
     else:
         print(f"识别完成无丢帧")

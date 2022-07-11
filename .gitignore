@@ -138,3 +138,5 @@ venv/
 *.docx
 *.zip
 *.pptx
+
+AnyReceiver/

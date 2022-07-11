@@ -287,10 +287,10 @@ class QrAnyTransUI():
         self.reset_task()
 
     def update_tip(self, tip):
-        self.cur_tips.set(tip)
+        self.cur_tips.set(f"{tip}, 码版本[{USING_VERSION}]")
 
     def reset_tip(self):
-        self.cur_tips.set("当前无任务")
+        self.cur_tips.set(f"当前无任务,码版本[{USING_VERSION}]")
         self._set_file_speed_tip(is_reset=True)
         self._set_file_size_tip(is_reset=True)
 

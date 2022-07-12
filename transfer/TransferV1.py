@@ -26,7 +26,7 @@ DATA_F_META_SIZE_BYTE = 20
 MAX_EXT_META_SIZE_BYTE = 63
 
 # 推荐QR版本（测试后传输效率最高的版本）
-RECOMMAND_VERSION = 34
+RECOMMAND_VERSION = 22
 
 DATA_PROT_V_1 = 1
 
@@ -36,7 +36,7 @@ class TransferV1(TransferBase):
     第一版传输器
     实现功能：base64编码、next函数、定位到任意位函数
     '''
-    def __init__(self, file_name: str, bio: BytesIO, data_prot:str, data_prot_v: int, code_prot:str, confirm_method: int = ConfirmMethod.NO_CFM, qr_version: int=RECOMMAND_VERSION, ext_meta=None, ext_meta_size:int=0):
+    def __init__(self, file_name: str, bio: BytesIO, data_prot:str, data_prot_v: int, code_prot:str, confirm_method: int = ConfirmMethod.NO_CFM, qr_version: int=RECOMMAND_VERSION, ext_meta=None, ext_meta_size:int=0, code_encode:str="base85"):
         TransferBase.__init__(self)
         self.file_name = file_name
         self.file_bio = bio
@@ -54,6 +54,9 @@ class TransferV1(TransferBase):
         if ext_meta_size < 0 or ext_meta_size > MAX_EXT_META_SIZE_BYTE:
             self.ext_meta_size = 0
             self.ext_meta = None
+        self.code_encode = code_encode
+        if self.code_encode not in ["base85","base64"]:
+            self.code_encode = "base85"
         
         if "." in self.file_name:
             self.file_type = self.file_name[::-1].split(".")[0][::-1]
@@ -71,7 +74,12 @@ class TransferV1(TransferBase):
 
         # 计算当前方案下单码可承载数据字节数
         # 查表取得总字节数，总字节数-固定meta大小-扩展meta大小 = 有效数据字节数
-        total_capcity = int(constants.v_max_data_dict[self.version] / 50 * 40) # 应对base85
+
+        if self.code_encode == "base85":
+            total_capcity = int(constants.v_max_data_dict[self.version] / 5 * 4) # 应对base85
+        elif self.code_encode == "base64":
+            total_capcity = int(constants.v_max_data_dict[self.version] / 4 * 3) # 应对base85
+
         self.frame_pure_data_size_byte = total_capcity - DATA_F_META_SIZE_BYTE - self.ext_meta_size
 
         self.total_batch_count = int(math.ceil(self.file_size_Byte / self.frame_pure_data_size_byte))
@@ -161,8 +169,12 @@ class TransferV1(TransferBase):
         qr = qrcode.QRCode(version=self.version, mask_pattern=constants.DEFAULT_MASK_PATTERN, box_size=15, border=6)
         try:
             # qr.add_data(QRData(main_data_obj.get_total_data_bytes(), mode=MODE_8BIT_BYTE))
-            # qr.add_data(QRData(base64.b64encode(main_data_obj.get_total_data_bytes()), mode=MODE_8BIT_BYTE))
-            qr.add_data(QRData(base64.b85encode(main_data_obj.get_total_data_bytes()), mode=MODE_8BIT_BYTE))
+
+           
+            if self.code_encode == "base85":
+                qr.add_data(QRData(base64.b85encode(main_data_obj.get_total_data_bytes()), mode=MODE_8BIT_BYTE))
+            elif self.code_encode == "base64":
+                qr.add_data(QRData(base64.b64encode(main_data_obj.get_total_data_bytes()), mode=MODE_8BIT_BYTE))
 
             im = qr.make_image()
             return im
@@ -223,7 +235,7 @@ class TransferV1(TransferBase):
         handshake_data = HandshakeDataV1(self.file_name, int(self.file_size_Byte / 1024), self.file_type, self.file_md5, self.total_batch_count, self.data_prot,\
             self.data_prot_v, self.confirm_method)
 
-        hand_shake_pkg = HandshakePkgV1(True, StatusCode.OK, "ok", self.trans_uuid, handshake_data)
+        hand_shake_pkg = HandshakePkgV1(True, StatusCode.OK, "ok", self.trans_uuid, handshake_data, data_qrcode_version=self.version, data_encode=self.code_encode)
 
         return hand_shake_pkg
 
@@ -242,8 +254,6 @@ class HandshakeDataV1():
         self.data_prot_v = data_prot_v
         self.confirm_method = confirm_method
         self.total_data_frame_count = total_data_frame_count
-        
-        pass
 
 class HandshakePkgV1():
 
@@ -251,13 +261,14 @@ class HandshakePkgV1():
     握手数据包
     '''
 
-    def __init__(self, success:bool, status_code:int, status_msg_12:str, transfer_uuid:str, handshake_data:HandshakeDataV1, data_qrcode_version:int):
+    def __init__(self, success:bool, status_code:int, status_msg_12:str, transfer_uuid:str, handshake_data:HandshakeDataV1, data_qrcode_version:int, data_encode:str):
         self.success = success
         self.status_code = status_code
         self.status_msg_12 = status_msg_12
         self.pkg_version = "1.0"
         self.uuid = transfer_uuid
         self.data_qrcode_version = data_qrcode_version
+        self.data_encode = data_encode
         self.main_data = handshake_data.__dict__
 
         self.main_data_md5 = self._gen_hand_shake_main_data_md5()
@@ -283,9 +294,9 @@ class HandshakePkgV1():
     def _gen_hdsk_md5(self) -> str:
         '''
         多端MD5算法必须一致。
-        握手包版本号_主数据md5_uuid 算md5
+        握手包版本号_主数据md5_uuid_version_encode 算md5
         '''
-        return StringUtil.get_md5_lowerhex(f"{self.pkg_version}_{self.main_data_md5}_{self.uuid}_{str(self.data_qrcode_version)}")
+        return StringUtil.get_md5_lowerhex(f"{self.pkg_version}_{self.main_data_md5}_{self.uuid}_{str(self.data_qrcode_version)}+{self.data_encode}")
 
     def _gen_hand_shake_main_data_md5(self) -> str:
         '''

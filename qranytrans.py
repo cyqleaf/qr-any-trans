@@ -23,6 +23,7 @@ CANVAS_COL = 3
 
 IMAGE_BUFFER_SIZE = 6
 USING_VERSION = 22
+USING_ENCODE = "base85"
 
 
 AUTHOR_DESC = f"版本: {app_version}  ©HONG Xiao hongxiao95@hotmail.com"
@@ -287,10 +288,10 @@ class QrAnyTransUI():
         self.reset_task()
 
     def update_tip(self, tip):
-        self.cur_tips.set(f"{tip}, 码版本[{USING_VERSION}]")
+        self.cur_tips.set(f"{tip}, 码版本[{USING_VERSION}]，编码[{USING_ENCODE}]")
 
     def reset_tip(self):
-        self.cur_tips.set(f"当前无任务,码版本[{USING_VERSION}]")
+        self.cur_tips.set(f"当前无任务,码版本[{USING_VERSION}，编码[{USING_ENCODE}]")
         self._set_file_speed_tip(is_reset=True)
         self._set_file_size_tip(is_reset=True)
 
@@ -497,32 +498,48 @@ class QrReceiverUI():
         pass
 
 def main():
-    global CANVAS_COL, USING_VERSION
+    global CANVAS_COL, USING_VERSION, USING_ENCODE
     cols = -1
     user_version = -1
+    user_encode = "base85"
     
     while cols == -1:
-        i_cols = input(f"每屏二维码数(1~3)，默认为{CANVAS_COL}： ")
+        i_cols = input(f"\n每屏二维码数(1~3)，默认为{CANVAS_COL}： ")
         if i_cols.strip() == "":
             cols = CANVAS_COL
         elif i_cols.strip() in [str(i) for i in range(1,4)]:
             cols = int(i_cols)
         else:
-            print("请输入合法数字！")
+            print("请输入合法数字或直接回车取用默认值！")
             continue
     
     while user_version == -1:
-        i_user_version = input(f"数据密度(15~31),越小越慢，越大识别率越低，默认为{USING_VERSION}： ")
+        i_user_version = input(f"\n数据密度(15~31),越小越慢，越大识别率越低，默认为{USING_VERSION}： ")
         if i_user_version.strip() == "":
             user_version = USING_VERSION
         elif i_user_version.strip() in [str(i) for i in range(15,32)]:
             user_version = int(i_user_version)
         else:
-            print("请输入合法数字！")
+            print("请输入合法数字或直接回车取用默认值！")
+            continue
+
+    a_encode = -1
+    encodes = ["base85", "base64"]
+    while True:
+        a_encode = input(f"\n编码模式:\n1、base85 2、base64，默认为{USING_ENCODE}\n")
+        if a_encode.strip() == "":
+            user_encode = USING_ENCODE
+            break
+        elif a_encode.strip() in ["1","2"]:
+            user_encode = encodes[int(a_encode.strip())]
+            break
+        else:
+            print("请输入合法数字或直接回车取用默认值！")
             continue
 
     CANVAS_COL = cols
     USING_VERSION = user_version
+    USING_ENCODE = user_encode
 
     ui = QrAnyTransUI()
     ui.run()

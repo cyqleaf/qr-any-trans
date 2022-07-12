@@ -125,6 +125,18 @@ def main():
             print(f"补丁文件{sys.argv[i]} 不存在，请提供合法文件名")
             return
 
+    while True:
+        aimed_code_encode = input("如需强制指定编码，请输入指定解码编码\n1. base85\n2. base64， 如直接回车，将使用待解码文件中自述的编码，如解码文件未自述，则使用base85\n")
+        if aimed_code_encode.strip() == "":
+            break
+        if aimed_code_encode.strip() in ["1","2"]:
+            aimed_code_encode = ["base85","base64"][int(aimed_code_encode)]
+            break
+        else:
+            print("请输入正确的序号，或直接回车。")
+            continue
+
+
     # 主视频文件名
     main_file_name = sys.argv[1]
     # file_name = "~/Downloads/IMG_0560.MOV"
@@ -140,7 +152,7 @@ def main():
         if main_file_name.strip().endswith(".qtt"):
             finish = read_from_tmp_file(main_file_name, decode_info=decode_info)
         else:
-            finish = decode_frames(main_file_name, False, decode_info=decode_info)
+            finish = decode_frames(main_file_name, False, decode_info=decode_info, aimed_encode=aimed_code_encode)
 
         print("检查补丁文件。。。" if len(patch_files) > 0 else "")
         for patch_file_name in patch_files:
@@ -179,7 +191,7 @@ def _check_in_predata(target_data:bytes, pre_datas:list, pre_data_index:int = 0)
     return False
 
 
-def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo) -> bool:
+def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo, aimed_encode:str) -> bool:
     cap = cv2.VideoCapture(video_file_name)
     video_frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 
@@ -189,6 +201,7 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo) ->
     transfer_uuid = ""
     file_md5 = ""
     data_qrcode_version = 0
+    data_encode = ""
     pre_frame = -1
 
     c_index = 0
@@ -227,6 +240,15 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo) ->
                     transfer_uuid = hand_shake_jsonobj["uuid"]
                     if "data_qrcode_version" in hand_shake_jsonobj.keys():
                         data_qrcode_version = hand_shake_jsonobj["data_qrcode_version"]
+                    
+                    if aimed_encode != "":
+                        data_encode = aimed_encode
+                    elif "data_encode" in hand_shake_jsonobj.keys():
+                        data_encode = hand_shake_jsonobj["data_encode"]
+                    else:
+                        data_encode = "base85"
+
+
                     
                     rec_file_name = hand_shake_jsonobj["main_data"]["file_name"]
                     file_md5 = hand_shake_jsonobj["main_data"]["file_md5"]
@@ -299,6 +321,7 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo) ->
 
     if len(decode_info.miss_frame_indexes) > 0:
         print(f"本次识别后总丢帧{len(decode_info.miss_frame_indexes):5d},丢帧率{(len(decode_info.miss_frame_indexes) / decode_info.total_frame_count) * 100:.2f} %,丢帧详情：{decode_info.miss_frame_indexes}")
+        print(f"如需要录制补丁帧，请注意文件为:{rec_file_name}, 码版本为:{data_qrcode_version}, 编码模式为{data_encode}")
         return False
     else:
         print(f"识别完成无丢帧")

@@ -159,7 +159,7 @@ def main():
             if finish is True:
                 break
             print(f"检查补丁文件 [{patch_file_name}]")
-            finish = decode_frames(patch_file_name, True, decode_info=decode_info)
+            finish = decode_frames(patch_file_name, True, decode_info=decode_info, aimed_encode=aimed_code_encode)
 
         if decode_info.rec_file_name.strip() == "":
             print("未获取到文件名，失败")

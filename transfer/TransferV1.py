@@ -155,26 +155,33 @@ class TransferV1(TransferBase):
         if self.data_prot == DATA_PROT_JSON:
             return self._gen_cur_qr_json()
         elif self.data_prot == DATA_PROT_BYTES:
-            return self._gen_cur_qr_bytes()
+            return self._gen_cur_qr_in_bytes()
         else:
             return None
 
+    def gen_cur_frame_bytes(self, aimed_index = -1) -> bytes:
 
-    def _gen_cur_qr_bytes(self) -> Image:
-        self.file_bio.seek(self.index * self.frame_pure_data_size_byte, 0)
+        if aimed_index == -1:
+            aimed_index  = self.index
+        self.file_bio.seek(aimed_index * self.frame_pure_data_size_byte, 0)
         pure_data_bytes = self.file_bio.read(self.frame_pure_data_size_byte)
 
-        main_data_obj = MainDataBytesV1(pure_data_bytes, self.index, self.total_batch_count, self.trans_uuid)
+        main_data_obj = MainDataBytesV1(pure_data_bytes, aimed_index, self.total_batch_count, self.trans_uuid)
+
+        print(len(main_data_obj.get_total_data_bytes()))
+
+        return main_data_obj.get_total_data_bytes()
+
+
+    def _gen_cur_qr_in_bytes(self) -> Image:
 
         qr = qrcode.QRCode(version=self.version, mask_pattern=constants.DEFAULT_MASK_PATTERN, box_size=15, border=6)
         try:
             # qr.add_data(QRData(main_data_obj.get_total_data_bytes(), mode=MODE_8BIT_BYTE))
-
-           
             if self.code_encode == "base85":
-                qr.add_data(QRData(base64.b85encode(main_data_obj.get_total_data_bytes()), mode=MODE_8BIT_BYTE))
+                qr.add_data(QRData(base64.b85encode(self.gen_cur_frame_bytes()), mode=MODE_8BIT_BYTE))
             elif self.code_encode == "base64":
-                qr.add_data(QRData(base64.b64encode(main_data_obj.get_total_data_bytes()), mode=MODE_8BIT_BYTE))
+                qr.add_data(QRData(base64.b64encode(self.gen_cur_frame_bytes()), mode=MODE_8BIT_BYTE))
 
             im = qr.make_image()
             return im

@@ -10,6 +10,7 @@ import os
 from io import BytesIO
 from PIL import Image, ImageTk
 import time
+import math
 
 from transfer.TransferV1 import CODE_PROT_SINGLE_CLR, DATA_PROT_BYTES, DATA_PROT_V_1, TransferV1
 
@@ -22,8 +23,13 @@ CANVAS_SIDE_PADDING_RATE = 1.03
 CANVAS_COL = 3
 
 IMAGE_BUFFER_SIZE = 6
+
+# 使用的码版本
 USING_VERSION = 22
+# 使用的编码方式，默认b85
 USING_ENCODE = "base85"
+# 使用的异或校验频率， 默认无。可选范围：[1~128], 低于1无，1为和全1异或。高于1000为1000
+USING_CHECK_FRQ = 0
 
 
 AUTHOR_DESC = f"版本: {app_version}  ©HONG Xiao hongxiao95@hotmail.com"
@@ -45,6 +51,7 @@ class QrAnyTransUI():
         self.call_stop = False
         self.is_stoped = False
         self.rec_thread = None
+        self.check_frame_count = 0
 
         self._prepare_components()
         self.reset_app()        
@@ -187,6 +194,9 @@ class QrAnyTransUI():
         self.speed_var.set(5)
         self.speed_var_int.set(5)
 
+        # 重置校验帧数
+        self.check_frame_count = 0
+
         # 重置跳转帧数
         self.skip_spin_box.set(0)
 
@@ -288,10 +298,10 @@ class QrAnyTransUI():
         self.reset_task()
 
     def update_tip(self, tip):
-        self.cur_tips.set(f"{tip}, 码版本[{USING_VERSION}]，编码[{USING_ENCODE}]")
+        self.cur_tips.set(f"{tip}, 码版本[{USING_VERSION}]，编码[{USING_ENCODE}]，校验间隔[{USING_CHECK_FRQ}]")
 
     def reset_tip(self):
-        self.cur_tips.set(f"当前无任务,码版本[{USING_VERSION}，编码[{USING_ENCODE}]")
+        self.cur_tips.set(f"当前无任务,码版本[{USING_VERSION}]，编码[{USING_ENCODE}]，校验间隔[{USING_CHECK_FRQ}]")
         self._set_file_speed_tip(is_reset=True)
         self._set_file_size_tip(is_reset=True)
 
@@ -324,7 +334,13 @@ class QrAnyTransUI():
         # 加载到app中
         self.transfer = TransferV1(self.pure_file_name, self.source_bio, DATA_PROT_BYTES, DATA_PROT_V_1, CODE_PROT_SINGLE_CLR, qr_version=USING_VERSION)
 
-        self.update_tip(f"文件初始化完成, Meta帧 / {self.transfer.total_batch_count}帧")
+        # 计算校验帧数量
+        if USING_CHECK_FRQ == 0:
+            self.check_frame_count = 0
+        else:
+            self.check_frame_count = math.ceil(self.transfer.total_batch_count / USING_CHECK_FRQ)
+
+        self.update_tip(f"文件初始化完成, Meta帧 / {self.transfer.total_batch_count}/ {self.check_frame_count}帧")
     
     def _check_skip_frame_spinbox(self) -> bool:
         return True
@@ -362,6 +378,58 @@ class QrAnyTransUI():
         except ValueError as e:
             messagebox.showerror("出错",f"解析补丁出错, ValueError:{e}")
             return (False, f"解析补丁出错, ValueError:{e}")
+    
+    # 处理可能的校验帧，不需要输出校验帧则返回(False,),需要输出则返回(True, data_im)
+    def process_check_data(self) -> tuple:
+        if self.transfer.patch_mode == True:
+            return (False, "补丁模式不校验")
+        
+        if USING_CHECK_FRQ == 0:
+            return (False, "用户指定不校验")
+
+        # 剩下的是指定校验的情况，首先判断当前是否走到最后一帧，最后一帧必校验。然后判断是否是校验间隔的最后一帧，如是，也校验
+        # 从当前帧，倒退到上一个与校验帧间隔取余为0的index，如果该列表长度仅为1，则与全1异或
+        should_check = False
+        if self.transfer.index == self.transfer.total_batch_count - 1:
+            should_check = True
+        elif (self.transfer.index + 1) % USING_CHECK_FRQ == 0:
+            should_check = True
+        
+        # 获取源帧index列表
+        src_frame_indexes = [self.transfer.index]
+        tmp_index = self.transfer.index
+        if USING_CHECK_FRQ > 1:
+            tmp_index -= 1
+            while self.index >= 0 and self.index % USING_CHECK_FRQ != (USING_CHECK_FRQ - 1):
+                src_frame_indexes.append(tmp_index)
+                tmp_index -= 1
+
+        xor_res = bytes()
+
+        if len(src_frame_indexes) == 1:
+            xor_res = self.xor_with_one(self.transfer.gen_cur_frame_bytes(aimed_index=src_frame_indexes[0]))
+
+        else:
+            ori_byteses = []
+            for i in src_frame_indexes:
+                ori_byteses.append(self.transfer.gen_cur_frame_bytes(aimed_index=i))
+            
+            data_lens = [len(x) for x in ori_byteses]
+            max_data_len = max(data_lens)
+
+            for data in ori_byteses:
+                pass
+
+
+        
+
+    def xor_with_one(self, in_bytes:bytes) -> bytes:
+        br = bytearray(in_bytes)
+        for i in range(len(br)):
+            br[i] = br[i] ^ 0xff
+
+        return bytes(br)
+
 
     def run_task(self):
 
@@ -498,7 +566,7 @@ class QrReceiverUI():
         pass
 
 def main():
-    global CANVAS_COL, USING_VERSION, USING_ENCODE
+    global CANVAS_COL, USING_VERSION, USING_ENCODE, USING_CHECK_FRQ
     cols = -1
     user_version = -1
     user_encode = "base85"
@@ -528,6 +596,7 @@ def main():
     while True:
         a_encode = input(f"\n编码模式:\n1、base85 2、base64，默认为{USING_ENCODE}\n")
         if a_encode.strip() == "":
+            print(f"已选择 {USING_ENCODE}")
             user_encode = USING_ENCODE
             break
         elif a_encode.strip() in ["1","2"]:
@@ -537,12 +606,63 @@ def main():
             print("请输入合法数字或直接回车取用默认值！")
             continue
 
+    user_check_frq = 0
+    while True:
+        user_check_frq = input(f"\n请选择校验间隔,取值范围 [1,128]， 校验间隔越大，纠错能力越差，0为不校验。默认为0。\n输入'c'查看估算纠错能力表：\n")
+        user_check_frq = user_check_frq.strip()
+        if user_check_frq.lower() == "c":
+            show_check_table()
+            continue
+        elif user_check_frq == "":
+            user_check_frq = 0
+            print("采纳不校验")
+            break
+        elif user_check_frq.isdigit() == False:
+            print("请输入合法整数")
+            continue
+        elif int(user_check_frq) < 1:
+            user_check_frq = 0
+            print("采纳不校验")
+            break
+        elif int(user_check_frq) > 128:
+            user_check_frq = 128
+            print("输入过大，按照128处理")
+            break
+        else:
+            user_check_frq = int(user_check_frq)
+            print(f"采纳校验间隔 {user_check_frq}")
+            break
+
     CANVAS_COL = cols
     USING_VERSION = user_version
     USING_ENCODE = user_encode
+    USING_CHECK_FRQ = user_check_frq
 
     ui = QrAnyTransUI()
     ui.run()
+
+
+# 查看纠错能力估算表
+def show_check_table():
+    frq_list = [1,2,4,8,16,32,64,128]
+    ori_err_frq = [0.5,0.2,0.1,0.05,0.02,0.01,0.005,0.001,0.0005,0.0001]
+
+    print(f"{'校验间隔':5s} ", end="")
+    for frame_frq in frq_list:
+        print(f"{frame_frq:12d}", end="")
+    print()
+    
+    print("原丢帧率\t\t\t\t\t\t纠正后仍有丢帧的概率")
+    for err_frq in ori_err_frq:
+        print(f"{err_frq * 100:9.3f}% ", end="")
+        for frame_frq in frq_list:
+            ecc = (err_frq * err_frq) * frame_frq * (frame_frq - 1) / 2
+            if ecc < 1:
+                print(f"{ecc * 100:11.4f}%", end="")
+            else:
+                print("%+12s" % ("Almost",), end="")
+        print()
+
 
 if __name__ == "__main__":
     main()

@@ -155,7 +155,7 @@ class TransferV1(TransferBase):
         if self.data_prot == DATA_PROT_JSON:
             return self._gen_cur_qr_json()
         elif self.data_prot == DATA_PROT_BYTES:
-            return self._gen_cur_qr_in_bytes()
+            return self.gen_cur_qr_in_bytes()
         else:
             return None
 
@@ -173,15 +173,16 @@ class TransferV1(TransferBase):
         return main_data_obj.get_total_data_bytes()
 
 
-    def _gen_cur_qr_in_bytes(self) -> Image:
-
+    def gen_cur_qr_in_bytes(self, target_bytes = 0) -> Image:
+        if target_bytes == 0:
+            target_bytes = self.gen_cur_frame_bytes()
         qr = qrcode.QRCode(version=self.version, mask_pattern=constants.DEFAULT_MASK_PATTERN, box_size=15, border=6)
         try:
             # qr.add_data(QRData(main_data_obj.get_total_data_bytes(), mode=MODE_8BIT_BYTE))
             if self.code_encode == "base85":
-                qr.add_data(QRData(base64.b85encode(self.gen_cur_frame_bytes()), mode=MODE_8BIT_BYTE))
+                qr.add_data(QRData(base64.b85encode(target_bytes), mode=MODE_8BIT_BYTE))
             elif self.code_encode == "base64":
-                qr.add_data(QRData(base64.b64encode(self.gen_cur_frame_bytes()), mode=MODE_8BIT_BYTE))
+                qr.add_data(QRData(base64.b64encode(target_bytes), mode=MODE_8BIT_BYTE))
 
             im = qr.make_image()
             return im

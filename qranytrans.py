@@ -11,6 +11,10 @@ from io import BytesIO
 from PIL import Image, ImageTk
 import time
 import math
+import qrcode
+
+
+from numpy import byte
 
 from transfer.TransferV1 import CODE_PROT_SINGLE_CLR, DATA_PROT_BYTES, DATA_PROT_V_1, TransferV1
 
@@ -33,6 +37,35 @@ USING_CHECK_FRQ = 0
 
 
 AUTHOR_DESC = f"版本: {app_version}  ©HONG Xiao hongxiao95@hotmail.com"
+
+# 计算bytes列表异或
+def bytes_list_xor(bytes_li):
+    st = time.time()
+    if len(bytes_li) < 2:
+        raise Exception("异或list长度不足2")
+
+    for i in range(1, len(bytes_li)):
+        if len(bytes_li[i]) - len(bytes_li[i - 1]) != 0:
+            raise Exception(f"异或列表元素长度不一致，第{i}项为{len(bytes_li[i])}, 第{i - 1}项为{len(bytes_li[i - 1])}")
+    
+    res = bytearray(bytes_li[0])
+
+    for i in range(1, len(bytes_li)):
+        for j in range(len(res)):
+            res[j] ^= bytes_li[i][j]
+
+    res = bytes(res)
+    print(time.time() - st)
+
+    return res
+
+# 和全1异或
+def xor_with_one(in_bytes:bytes) -> bytes:
+    br = bytearray(in_bytes)
+    for i in range(len(br)):
+        br[i] = br[i] ^ 0xff
+
+    return bytes(br)
 
 class QrAnyTransUI():
     def __init__(self):
@@ -405,9 +438,11 @@ class QrAnyTransUI():
                 tmp_index -= 1
 
         xor_res = bytes()
-
+        
+        min_data_len = 0
         if len(src_frame_indexes) == 1:
-            xor_res = self.xor_with_one(self.transfer.gen_cur_frame_bytes(aimed_index=src_frame_indexes[0]))
+            xor_res = xor_with_one(self.transfer.gen_cur_frame_bytes(aimed_index=src_frame_indexes[0]))
+            min_data_len = len(xor_res)
 
         else:
             ori_byteses = []
@@ -416,20 +451,22 @@ class QrAnyTransUI():
             
             data_lens = [len(x) for x in ori_byteses]
             max_data_len = max(data_lens)
+            min_data_len = min(data_lens)
 
-            for data in ori_byteses:
-                pass
+            if (self.transfer.total_batch_count - 1) in src_frame_indexes:
+                # 给尾帧补0
+                for i in range(len(ori_byteses)):
+                    if len(ori_byteses[i]) < max_data_len:
+                        ori_byteses[i] += bytes(bytearray(max_data_len - len(ori_byteses[i])))
+            
+            # 计算异或校验帧
+            xor_res= bytes_list_xor(ori_byteses)
 
+        # 校验帧元数据区：开头4字节为0x19260817,后面跟一个字节帧跨度如0x05,即这一帧是临近5帧的异或结果，如果为0x01,说明是和全1异或的，即取反;再后面跟四字节数0x00000000,表示起始帧数，再后面跟0x0000,2字节数，表达末帧字节数，不够补0
+        xor_res = 0x19260817.to_bytes(4, byteorder="big") + len(src_frame_indexes).to_bytes(1, byteorder="big") + src_frame_indexes[-1].to_bytes(4, byteorder="big") + min_data_len.to_bytes(2, byteorder="big") + xor_res
 
-        
-
-    def xor_with_one(self, in_bytes:bytes) -> bytes:
-        br = bytearray(in_bytes)
-        for i in range(len(br)):
-            br[i] = br[i] ^ 0xff
-
-        return bytes(br)
-
+        im = self.transfer.gen_cur_qr_in_bytes(target_bytes=xor_res)
+        return im
 
     def run_task(self):
 

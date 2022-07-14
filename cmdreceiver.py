@@ -208,7 +208,7 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo, ai
 
         for decode_res in decode_res_list:
             # 首先在最高层级进行去重。以前30字节是否相同，确定是否是重复帧
-            if len(decode_res) <= 0 and _check_in_predata(decode_res.data[:30], pre_datas, pre_data_index) is True:
+            if len(decode_res) <= 0 or _check_in_predata(decode_res.data[:30], pre_datas, pre_data_index) is True:
                 continue
 
             found += 1
@@ -258,7 +258,11 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo, ai
 
             else:
                 #处理数据or校验帧
-                decode_bytes = base64.b85decode(cur_data)
+                try:
+                    decode_bytes = base64.b85decode(cur_data)
+                except ValueError as e:
+                    print("valueerror")
+                    continue
 
                 fix_head = int.from_bytes(decode_bytes[:4], byteorder="big")
 
@@ -287,7 +291,7 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo, ai
                     
                     now = time.time()
                     
-                    print(f"\r{ ('version:' + data_qrcode_version + ',') if data_qrcode_version != 0 else ''} scaned {c_index:5d}, found{found:5d}, cost:{now - decode_st:5.2f} s, est:{(video_frame_count - c_index - 1)  / (c_index / (now-decode_st + 0.001)):5.2f} s",end="")
+                    print(f"\r{ ('version:' + str(data_qrcode_version) + ',') if data_qrcode_version != 0 else ''} scaned {c_index:5d}, found{found:5d}, cost:{now - decode_st:5.2f} s, est:{(video_frame_count - c_index - 1)  / (c_index / (now-decode_st + 0.001)):5.2f} s",end="")
 
                 elif decode_check_frame == True:
                     # 确实是校验帧而且需要解码的情况
@@ -307,7 +311,7 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo, ai
                     # 添加友元帧查询集
                     for i in range(step):
                         frame_x_check_frame_index_map[part_st_index + i] = part_st_index
-                        friend_frames = list(range(part_st_index, part_st_index + 1))
+                        friend_frames = list(range(part_st_index, part_st_index + step))
                         friend_frames.remove(part_st_index + i)
 
                         frame_x_friend_frames_map[part_st_index + i] = tuple(friend_frames)

@@ -40,7 +40,6 @@ AUTHOR_DESC = f"版本: {app_version}  ©HONG Xiao hongxiao95@hotmail.com"
 
 # 计算bytes列表异或
 def bytes_list_xor(bytes_li):
-    st = time.time()
     if len(bytes_li) < 2:
         raise Exception("异或list长度不足2")
 
@@ -55,7 +54,6 @@ def bytes_list_xor(bytes_li):
             res[j] ^= bytes_li[i][j]
 
     res = bytes(res)
-    print(time.time() - st)
 
     return res
 

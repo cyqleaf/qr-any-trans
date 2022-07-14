@@ -12,22 +12,24 @@ import time
 
 # 计算bytes列表异或
 def bytes_list_xor(bytes_li):
-    st = time.time()
-    if len(bytes_li) < 2:
+
+    use_bytes_li = [bytes(x) for x in bytes_li]
+    if len(use_bytes_li) < 2:
         raise Exception("异或list长度不足2")
 
-    for i in range(1, len(bytes_li)):
-        if len(bytes_li[i]) - len(bytes_li[i - 1]) != 0:
-            raise Exception(f"异或列表元素长度不一致，第{i}项为{len(bytes_li[i])}, 第{i - 1}项为{len(bytes_li[i - 1])}")
-    
-    res = bytearray(bytes_li[0])
+    max_len = max([len(x) for x in use_bytes_li])
 
-    for i in range(1, len(bytes_li)):
+    for i in range(len(use_bytes_li)):
+        if len(use_bytes_li[i]) < max_len:
+            use_bytes_li[i] += bytes(max_len - len(use_bytes_li[i]))
+    
+    res = bytearray(use_bytes_li[0])
+
+    for i in range(1, len(use_bytes_li)):
         for j in range(len(res)):
-            res[j] ^= bytes_li[i][j]
+            res[j] ^= use_bytes_li[i][j]
 
     res = bytes(res)
-    print(time.time() - st)
 
     return res
 
@@ -370,7 +372,12 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo, ai
             else:
                 fixed_bytes = bytes_list_xor([decode_info[x] for x in frame_x_friend_frames_map[miss_frame]] + [check_llimit_to_data_map[frame_x_check_frame_index_map[miss_frame]]])
 
-            decode_info.file_bytes_buffer[miss_frame] = fixed_bytes
+            end_index = len(fixed_bytes)
+
+            if miss_frame == decode_info.total_frame_count - 1:
+                end_index = total_tail_size_B
+
+            decode_info.file_bytes_buffer[miss_frame] = fixed_bytes[:end_index]
             print(f"利用校验数据修复[{miss_frame}] 帧")
         
         # 计算修复后剩余的缺帧数

@@ -522,8 +522,6 @@ class QrAnyTransUI():
                     raise Exception(f"生成校验帧意外错误 {che_fr_res}")
                 data_im = che_fr_res[1]
 
-            print(is_check_frame)
-
             # 转换为tk图片
             tk_im = self._im_to_canvas_im(data_im)
 

@@ -370,7 +370,7 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo, ai
             if len(frame_x_friend_frames_map[miss_frame]) == 0:
                 fixed_bytes = xor_with_one(check_llimit_to_data_map[miss_frame])
             else:
-                fixed_bytes = bytes_list_xor([decode_info[x] for x in frame_x_friend_frames_map[miss_frame]] + [check_llimit_to_data_map[frame_x_check_frame_index_map[miss_frame]]])
+                fixed_bytes = bytes_list_xor([decode_info.file_bytes_buffer[x] for x in frame_x_friend_frames_map[miss_frame]] + [check_llimit_to_data_map[frame_x_check_frame_index_map[miss_frame]]])
 
             end_index = len(fixed_bytes)
 

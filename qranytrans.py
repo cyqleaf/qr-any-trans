@@ -444,13 +444,13 @@ class QrAnyTransUI():
         
         min_data_len = 0
         if len(src_frame_indexes) == 1:
-            xor_res = xor_with_one(self.transfer.gen_cur_frame_bytes(aimed_index=src_frame_indexes[0]))
+            xor_res = xor_with_one(self.transfer.gen_cur_frame_bytes(aimed_index=src_frame_indexes[0], pure_data=True))
             min_data_len = len(xor_res)
 
         else:
             ori_byteses = []
             for i in src_frame_indexes:
-                ori_byteses.append(self.transfer.gen_cur_frame_bytes(aimed_index=i))
+                ori_byteses.append(self.transfer.gen_cur_frame_bytes(aimed_index=i, pure_data=True))
             
             data_lens = [len(x) for x in ori_byteses]
             max_data_len = max(data_lens)
@@ -465,7 +465,7 @@ class QrAnyTransUI():
             # 计算异或校验帧
             xor_res= bytes_list_xor(ori_byteses)
 
-        # 校验帧元数据区：开头4字节为0x19260817,后面跟一个字节帧跨度如0x05,即这一帧是临近5帧的异或结果，如果为0x01,说明是和全1异或的，即取反;再后面跟四字节数0x00000000,表示起始帧数，再后面跟0x0000,2字节数，表达末帧字节数，不够补0
+        # 校验帧元数据区：开头4字节为0x19260817,后面跟一个字节，描述帧跨度：如0x05,即这一帧是临近5帧的异或结果，如果为0x01,说明是和全1异或的，即取反;再后面跟四字节数0x00000000,表示起始帧数，再后面跟0x0000,2字节数，表达末帧字节数，不够补0
         xor_res = 0x19260817.to_bytes(4, byteorder="big") + len(src_frame_indexes).to_bytes(1, byteorder="big") + src_frame_indexes[-1].to_bytes(4, byteorder="big") + min_data_len.to_bytes(2, byteorder="big") + xor_res
 
         im = self.transfer.gen_cur_qr_in_bytes(target_bytes=xor_res)

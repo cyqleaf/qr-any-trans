@@ -159,12 +159,16 @@ class TransferV1(TransferBase):
         else:
             return None
 
-    def gen_cur_frame_bytes(self, aimed_index = -1) -> bytes:
+    def gen_cur_frame_bytes(self, aimed_index = -1, pure_data = False) -> bytes:
 
         if aimed_index == -1:
             aimed_index  = self.index
         self.file_bio.seek(aimed_index * self.frame_pure_data_size_byte, 0)
         pure_data_bytes = self.file_bio.read(self.frame_pure_data_size_byte)
+
+        # 只返回裸数据，基本是校验帧使用
+        if pure_data == True:
+            return pure_data_bytes
 
         main_data_obj = MainDataBytesV1(pure_data_bytes, aimed_index, self.total_batch_count, self.trans_uuid)
 

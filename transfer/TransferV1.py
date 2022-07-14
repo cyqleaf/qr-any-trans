@@ -168,8 +168,6 @@ class TransferV1(TransferBase):
 
         main_data_obj = MainDataBytesV1(pure_data_bytes, aimed_index, self.total_batch_count, self.trans_uuid)
 
-        print(len(main_data_obj.get_total_data_bytes()))
-
         return main_data_obj.get_total_data_bytes()
 
 

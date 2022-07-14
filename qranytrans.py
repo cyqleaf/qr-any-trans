@@ -217,7 +217,7 @@ class QrAnyTransUI():
         # 重置传输器
         if (self.transfer is None) == False:
             self.transfer.reset_transfer_state()
-            self.update_tip(f"文件初始化完成, Meta帧 / {self.transfer.total_batch_count}帧")
+            self.update_tip(f"文件初始化完成, Meta帧 / {self.transfer.total_batch_count} / {self.check_frame_count}帧")
 
 
         # 重置二维码区域
@@ -427,13 +427,16 @@ class QrAnyTransUI():
             should_check = True
         elif (self.transfer.index + 1) % USING_CHECK_FRQ == 0:
             should_check = True
+
+        if should_check == False:
+            return (False, "非校验位置，不校验")
         
         # 获取源帧index列表
         src_frame_indexes = [self.transfer.index]
         tmp_index = self.transfer.index
         if USING_CHECK_FRQ > 1:
             tmp_index -= 1
-            while self.index >= 0 and self.index % USING_CHECK_FRQ != (USING_CHECK_FRQ - 1):
+            while tmp_index >= 0 and tmp_index % USING_CHECK_FRQ != (USING_CHECK_FRQ - 1):
                 src_frame_indexes.append(tmp_index)
                 tmp_index -= 1
 
@@ -466,12 +469,13 @@ class QrAnyTransUI():
         xor_res = 0x19260817.to_bytes(4, byteorder="big") + len(src_frame_indexes).to_bytes(1, byteorder="big") + src_frame_indexes[-1].to_bytes(4, byteorder="big") + min_data_len.to_bytes(2, byteorder="big") + xor_res
 
         im = self.transfer.gen_cur_qr_in_bytes(target_bytes=xor_res)
-        return im
+        return (True, im)
 
     def run_task(self):
 
         task_st = time.time()
-        handled_frames = 0
+        handled_data_frames = 0
+        handled_check_frames = 0
 
         # 处理补丁模式
         if self.patch_frame_checkbtn_var.get() is True:
@@ -494,7 +498,7 @@ class QrAnyTransUI():
         st = 0
         # 记录图像该显示在第几列，在单列模式下，始终显示在一个位置。所有列显示完了，再考虑是否暂停
         im_pos = 0
-        while has_next is True:
+        while has_next is True or handled_check_frames < self.check_frame_count - 1:
             if self.call_stop is True:
                 self.is_stoped = True
                 return
@@ -502,10 +506,23 @@ class QrAnyTransUI():
                 time.sleep(0.2)
                 # print("暂停态")
                 continue
+            
+            # 判断本次轮到数据帧还是校验帧
+            # 校验帧条件：(校验开关打开 and 不是补丁模式) and ((是尾帧 or index是校验该当数,即index+1 对校验间隔取余为0) and 该当校验帧数比当前已handle校验帧数大1)
+            is_check_frame = (USING_CHECK_FRQ > 0 and self.transfer.patch_mode == False) and ( (self.transfer.index == self.transfer.total_batch_count - 1 or (self.transfer.index + 1) % USING_CHECK_FRQ == 0) and  math.ceil(self.transfer.index / USING_CHECK_FRQ) == handled_check_frames + 1)
 
-            # 生成QR码
-            data_im = self.transfer.gen_cur_qr()
-            has_next = (self.transfer.next_batch() != False)
+            data_im = 0
+            if is_check_frame == False:
+                # 生成QR码
+                data_im = self.transfer.gen_cur_qr()
+                has_next = (self.transfer.next_batch() != False)
+            else:
+                che_fr_res = self.process_check_data()
+                if che_fr_res[0] == False:
+                    raise Exception(f"生成校验帧意外错误 {che_fr_res}")
+                data_im = che_fr_res[1]
+
+            print(is_check_frame)
 
             # 转换为tk图片
             tk_im = self._im_to_canvas_im(data_im)
@@ -524,7 +541,10 @@ class QrAnyTransUI():
 
             # 绘制到画布中
             self._draw_im_to_canvas(tk_im, im_pos)
-            handled_frames += 1
+            if is_check_frame:
+                handled_check_frames += 1
+            else:
+                handled_data_frames += 1
 
             # 第一幅qr画好开始计时
             if im_pos == 0:
@@ -533,19 +553,20 @@ class QrAnyTransUI():
 
             # 计算当前均速
             task_time = st - task_st
-            total_trans_B = handled_frames * self.transfer.frame_pure_data_size_byte
-            real_fps = self.transfer.index / task_time
+            total_trans_B = handled_data_frames * self.transfer.frame_pure_data_size_byte
+            real_fps = (self.transfer.index + handled_check_frames) / task_time
 
-            est_s = -1 if real_fps == 0 else (self.transfer.total_batch_count - self.transfer.index) / real_fps
+            est_s = -1 if real_fps == 0 else (self.transfer.total_batch_count + self.check_frame_count - self.transfer.index - handled_check_frames) / real_fps
             self._set_file_speed_tip(total_trans_B / 1024 / task_time, fps=real_fps, est_s=est_s)
 
             
             # 获取当前帧
             # 更新任务信息
-            self.update_tip(f"当前处理 {self.transfer.index}/ {self.transfer.total_batch_count}帧")
+            self.update_tip(f"当前处理 [{handled_data_frames}/ {self.transfer.total_batch_count}]帧, [{handled_check_frames} / {self.check_frame_count}] 验")
             
-            self.progress_var.set(self.transfer.index / self.transfer.total_batch_count * 100)
-        
+            # 更新进度条
+            self.progress_var.set((handled_data_frames + handled_check_frames) / (self.transfer.total_batch_count + self.check_frame_count) * 100)
+        self.main_win.update_idletasks()
         time.sleep(5)
         self.reset_task()
 
@@ -617,6 +638,7 @@ def main():
         else:
             print("请输入合法数字或直接回车取用默认值！")
             continue
+    print(f"已采纳屏宽 {cols}")
     
     while user_version == -1:
         i_user_version = input(f"\n数据密度(15~31),越小越慢，越大识别率越低，默认为{USING_VERSION}： ")
@@ -627,13 +649,13 @@ def main():
         else:
             print("请输入合法数字或直接回车取用默认值！")
             continue
+    print(f"已采纳版本{user_version}")
 
     a_encode = -1
     encodes = ["base85", "base64"]
     while True:
         a_encode = input(f"\n编码模式:\n1、base85 2、base64，默认为{USING_ENCODE}\n")
         if a_encode.strip() == "":
-            print(f"已选择 {USING_ENCODE}")
             user_encode = USING_ENCODE
             break
         elif a_encode.strip() in ["1","2"]:
@@ -642,6 +664,7 @@ def main():
         else:
             print("请输入合法数字或直接回车取用默认值！")
             continue
+    print(f"已选择编码 {user_encode}")
 
     user_check_frq = 0
     while True:

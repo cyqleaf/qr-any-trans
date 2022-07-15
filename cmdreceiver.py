@@ -378,7 +378,7 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo, ai
                 end_index = total_tail_size_B
 
             decode_info.file_bytes_buffer[miss_frame] = fixed_bytes[:end_index]
-            print(f"利用校验数据修复 [{miss_frame}] 帧")
+            print(f"利用校验数据修复  [{miss_frame}] 帧")
         
         # 计算修复后剩余的缺帧数
         new_miss_frames = list(filter(lambda x: x not in fixable_frames, decode_info.miss_frame_indexes))

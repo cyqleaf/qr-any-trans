@@ -73,7 +73,7 @@ class DecodeInfo():
         decode_md5 = hashlib.md5(bio.read()).hexdigest()
 
         print(f"文件 [{self.rec_file_name}] 已写入。{'但由于有丢帧，不保证准确性' if not file_complete else ''}")
-        print(f"已校验文件MD5, {'与源文件一致！' if decode_md5.strip() == self.file_md5 else '与源文件有出入，请谨慎采纳。'} \n接收文件MD5:{[decode_md5]}\n 源文件的MD5:{[self.file_md5]}")
+        print(f"已校验文件MD5, {'与源文件一致！' if decode_md5.strip() == self.file_md5 else '与源文件有出入，请谨慎采纳。'} \n接收文件MD5:{[decode_md5]}\n源文件的MD5:{[self.file_md5]}")
 
     def write_tmp_file(self):
         if len(self.miss_frame_indexes) == 0:
@@ -330,10 +330,10 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo, ai
             decode_info.miss_frame_indexes.append(i)
 
     if len(decode_info.miss_frame_indexes) > 0:
-        print(f"本次识别后，在未纠错的情况下，总丢帧{len(decode_info.miss_frame_indexes):5d},丢帧率{(len(decode_info.miss_frame_indexes) / decode_info.total_frame_count) * 100:.2f} %,丢帧详情：{decode_info.miss_frame_indexes}")
+        print(f"\n本次识别后，在未纠错的情况下，总丢帧{len(decode_info.miss_frame_indexes):5d},丢帧率{(len(decode_info.miss_frame_indexes) / decode_info.total_frame_count) * 100:.2f} %,丢帧详情：{decode_info.miss_frame_indexes}")
         # return False
     else:
-        print(f"识别完成无丢帧")
+        print(f"\n识别完成无丢帧")
         # return True
     
     # 修复可被校验纠正的可修复帧的列表
@@ -378,7 +378,7 @@ def decode_frames(video_file_name:str, is_patch:bool, decode_info:DecodeInfo, ai
                 end_index = total_tail_size_B
 
             decode_info.file_bytes_buffer[miss_frame] = fixed_bytes[:end_index]
-            print(f"利用校验数据修复[{miss_frame}] 帧")
+            print(f"利用校验数据修复 [{miss_frame}] 帧")
         
         # 计算修复后剩余的缺帧数
         new_miss_frames = list(filter(lambda x: x not in fixable_frames, decode_info.miss_frame_indexes))

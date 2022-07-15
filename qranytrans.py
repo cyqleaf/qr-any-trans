@@ -211,10 +211,14 @@ class QrAnyTransUI():
         self.reset_task()
 
     def reset_task(self):
-        
+
         # 重置传输器
         if (self.transfer is None) == False:
             self.transfer.reset_transfer_state()
+            if USING_CHECK_FRQ == 0:
+                self.check_frame_count = 0
+            else:
+                self.check_frame_count = math.ceil(self.transfer.total_batch_count / USING_CHECK_FRQ)
             self.update_tip(f"文件初始化完成, Meta帧 / {self.transfer.total_batch_count} / {self.check_frame_count}帧")
 
 
@@ -224,9 +228,6 @@ class QrAnyTransUI():
         # 重置速率
         self.speed_var.set(5)
         self.speed_var_int.set(5)
-
-        # 重置校验帧数
-        self.check_frame_count = 0
 
         # 重置跳转帧数
         self.skip_spin_box.set(0)

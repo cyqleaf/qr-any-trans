@@ -12,10 +12,6 @@ from PIL import Image, ImageTk
 import time
 import math
 import qrcode
-
-
-from numpy import byte
-
 from transfer.TransferV1 import CODE_PROT_SINGLE_CLR, DATA_PROT_BYTES, DATA_PROT_V_1, TransferV1
 
 

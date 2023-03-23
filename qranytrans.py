@@ -64,7 +64,7 @@ def xor_with_one(in_bytes:bytes) -> bytes:
 class QrAnyTransUI():
     def __init__(self):
         self.main_win = Tk()
-        self.main_win.wm_title("任意传输器")
+        self.main_win.wm_title("二维码传输器")
         self.pure_file_name = ""
         self.img_tk_buffer = [0 for i in range(IMAGE_BUFFER_SIZE)]
         self.img_handles = [0 for i in range(IMAGE_BUFFER_SIZE)]
@@ -90,7 +90,7 @@ class QrAnyTransUI():
         # 选择文件按钮
         self.chosen_file_name_var = StringVar()
         self.choose_file_entry = Entry(self.main_win, state="readonly", textvariable=self.chosen_file_name_var)
-        self.choose_file_btn = Button(self.main_win, text = "请选择文件", command=self.ask_file)
+        self.choose_file_btn = Button(self.main_win, text = "请选择待传输文件", command=self.ask_file)
         self.choose_file_entry.grid(column=0, row=0, columnspan=6, sticky=EW)
         self.choose_file_btn.grid(column=6, row=0, columnspan=2, sticky=EW)
 

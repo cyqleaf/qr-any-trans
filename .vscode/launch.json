@@ -6,7 +6,7 @@
     "configurations": [
 
         {
-            "name": "Python: 带参数",
+            "name": "Python: 解析器",
             "type": "python",
             "request": "launch",
             "program": "${file}",
